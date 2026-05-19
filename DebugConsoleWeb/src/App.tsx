@@ -1,25 +1,31 @@
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   App as AntdApp,
   Button,
   Card,
-  Col,
   Divider,
+  Flex,
   Form,
   Input,
   InputNumber,
   Layout,
-  Row,
+  Popover,
+  Select,
   Space,
   Statistic,
   Table,
   Tabs,
   Tag,
+  Tree,
   Typography,
 } from 'antd'
+import { InfoCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { buildQuery, fetchJSON, prettyJSON } from './api'
+import type { DataNode } from 'antd/es/tree'
+import { buildQuery, fetchJSON } from './api'
+import { FloatLabel } from '@freewind/FloatLabel'
+import { JsonPreviewer } from '@freewind/JsonPreviewer'
 import type {
   ActionCatalogResponse,
   ActionRequest,
@@ -28,14 +34,89 @@ import type {
   LogEntry,
   LogsClearResponse,
   LogsResponse,
+  SnapshotPreviewNode,
   SnapshotResponse,
   StateResponse,
 } from './types'
 
+type SnapshotTreeNode = {
+  id: string
+  kind: string
+  label: string
+  clickable: boolean
+  children: SnapshotTreeNode[]
+}
+
 const { Header, Content } = Layout
 const { Title, Text } = Typography
-const compactInputStyle = { width: '100%', maxWidth: 180 } as const
-const compactNumberStyle = { width: '100%', maxWidth: 120 } as const
+const compactInputStyle = { width: '100%' } as const
+const compactNumberStyle = { width: '100%' } as const
+const compactSelectStyle = { width: '100%' } as const
+const commonSelectProps = {
+  popupMatchSelectWidth: false,
+  size: 'small' as const,
+  style: compactSelectStyle,
+}
+const snapshotPreviewFallbackWidth = 520
+const snapshotPreviewFields = [
+  'id',
+  'parentId',
+  'type',
+  'text',
+  'role',
+  'visible',
+  'enabled',
+  'clickable',
+  'value',
+  'bounds',
+].join(',')
+const triStateOptions = [
+  { label: 'true', value: 'true' },
+  { label: 'false', value: 'false' },
+]
+const stateScopeOptions = [
+  { label: 'app', value: 'app' },
+  { label: 'target', value: 'target' },
+  { label: 'branch', value: 'branch' },
+]
+const snapshotScopeOptions = [
+  { label: 'self', value: 'self' },
+  { label: 'branchToRoot', value: 'branchToRoot' },
+  { label: 'subtree', value: 'subtree' },
+]
+
+function renderJson(value: unknown, maxHeight = 280) {
+  return <JsonPreviewer value={value ?? {}} maxHeight={maxHeight} />
+}
+
+const JsonInfoButton: FC<{
+  title: string
+  value: unknown
+  maxHeight?: number
+}> = ({
+  title,
+  value,
+  maxHeight = 320,
+}) => {
+  return (
+    <Popover
+      trigger="click"
+      placement="leftTop"
+      title={title}
+      content={(
+        <div style={{ width: 420, maxWidth: '70vw' }}>
+          {renderJson(value, maxHeight)}
+        </div>
+      )}
+    >
+      <Button
+        size="small"
+        type="text"
+        icon={<InfoCircleOutlined />}
+      />
+    </Popover>
+  )
+}
 
 const logColumns: ColumnsType<LogEntry> = [
   { title: 'seq', dataIndex: 'seq', width: 80 },
@@ -49,9 +130,192 @@ const logColumns: ColumnsType<LogEntry> = [
     title: 'data',
     dataIndex: 'data',
     width: 260,
-    render: (value) => <pre>{prettyJSON(value || {})}</pre>,
+    render: (value) => <JsonPreviewer value={value || {}} maxHeight={160} />,
   },
 ]
+
+function normalizeSnapshotQuery(values?: Record<string, unknown>) {
+  const next: Record<string, unknown> = { ...(values || {}) }
+  next.fields = snapshotPreviewFields
+  if (next.limit === undefined || next.limit === null || next.limit === '') {
+    next.limit = 200
+  }
+  return next
+}
+
+function toSnapshotPreviewNodes(snapshot: SnapshotResponse | null): SnapshotPreviewNode[] {
+  return (snapshot?.nodes || [])
+    .filter((node): node is SnapshotPreviewNode => {
+      return !!node.bounds
+        && node.visible !== false
+        && node.bounds.width > 0
+        && node.bounds.height > 0
+    })
+    .sort((left, right) => {
+      return (right.bounds.width * right.bounds.height) - (left.bounds.width * left.bounds.height)
+    })
+}
+
+function buildSnapshotTree(snapshot: SnapshotResponse | null): SnapshotTreeNode[] {
+  const nodes = snapshot?.nodes || []
+  const byParent = nodes.reduce<Record<string, SnapshotResponse['nodes']>>((result, node) => {
+    const parentKey = node.parentId || '__root__'
+    const current = result[parentKey] || []
+    current.push(node)
+    result[parentKey] = current
+    return result
+  }, {})
+
+  const sortNodes = (items: NonNullable<SnapshotResponse['nodes']>) => {
+    return [...items].sort((left, right) => {
+      const topDiff = (left.bounds?.top || 0) - (right.bounds?.top || 0)
+      if (topDiff !== 0) {
+        return topDiff
+      }
+      return (left.bounds?.left || 0) - (right.bounds?.left || 0)
+    })
+  }
+
+  const toTreeNode = (node: NonNullable<SnapshotResponse['nodes']>[number]): SnapshotTreeNode => {
+    const children = sortNodes(byParent[node.id] || []).map(toTreeNode)
+
+    return {
+      id: node.id,
+      kind: node.type || node.role || 'Node',
+      label: node.text || node.value || '',
+      clickable: !!node.clickable,
+      children,
+    }
+  }
+
+  return sortNodes(byParent.__root__ || []).map(toTreeNode)
+}
+
+const SnapshotPreview: FC<{ snapshot: SnapshotResponse | null }> = ({ snapshot }) => {
+  const nodes = toSnapshotPreviewNodes(snapshot)
+  const shellRef = useRef<HTMLDivElement | null>(null)
+  const [canvasWidth, setCanvasWidth] = useState(snapshotPreviewFallbackWidth)
+
+  useEffect(() => {
+    const element = shellRef.current
+    if (!element) {
+      return
+    }
+
+    const updateWidth = () => {
+      setCanvasWidth(Math.max(420, Math.floor(element.clientWidth - 2)))
+    }
+
+    updateWidth()
+
+    const observer = new ResizeObserver(() => {
+      updateWidth()
+    })
+    observer.observe(element)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
+  if (!nodes.length) {
+    return <Text type="secondary">no bounded nodes，先点 Query Snapshot</Text>
+  }
+
+  const minLeft = Math.min(...nodes.map((item) => item.bounds.left))
+  const minTop = Math.min(...nodes.map((item) => item.bounds.top))
+  const maxRight = Math.max(...nodes.map((item) => item.bounds.left + item.bounds.width))
+  const maxBottom = Math.max(...nodes.map((item) => item.bounds.top + item.bounds.height))
+  const width = Math.max(1, maxRight - minLeft)
+  const height = Math.max(1, maxBottom - minTop)
+  const scale = canvasWidth / width
+  const canvasHeight = Math.max(220, Math.ceil(height * scale))
+
+  return (
+    <div ref={shellRef} className="snapshot-preview-shell">
+      <div className="snapshot-preview-bar">
+        <Text type="secondary">
+          {(snapshot?.screen || snapshot?.summary?.screen || 'Unknown')} · {nodes.length} nodes
+        </Text>
+      </div>
+      <div className="snapshot-preview-canvas" style={{ height: canvasHeight }}>
+        {nodes.map((node) => {
+          const label = node.text || node.value || node.id
+          const typeLabel = node.type || node.role || 'Node'
+          const kind = (node.role || node.type || '').toLowerCase()
+          const isTextLike = kind === 'text' || kind === 'label'
+          const isContainer = kind === 'container' || kind === 'panel'
+          const scaledWidth = node.bounds.width * scale
+          const scaledHeight = node.bounds.height * scale
+          const showLabel = scaledWidth >= 18 && scaledHeight >= 8
+          const fontSize = Math.max(7, Math.min(14, Math.floor(scaledHeight * 0.5)))
+
+          return (
+            <div
+              key={node.id}
+              className={[
+                'snapshot-preview-node',
+                node.clickable ? 'snapshot-preview-node--clickable' : '',
+                isContainer ? 'snapshot-preview-node--container' : '',
+                isTextLike ? 'snapshot-preview-node--text' : '',
+              ].filter(Boolean).join(' ')}
+              style={{
+                left: (node.bounds.left - minLeft) * scale,
+                top: (node.bounds.top - minTop) * scale,
+                width: Math.max(scaledWidth, 12),
+                height: Math.max(scaledHeight, 10),
+                fontSize,
+              }}
+              title={`${node.id} / ${typeLabel}${label ? ` / ${label}` : ''}`}
+            >
+              {showLabel ? (
+                <>
+                  {!isContainer ? <div className="snapshot-preview-node-label">{label}</div> : null}
+                  {!isTextLike && !isContainer ? <div className="snapshot-preview-node-meta">{typeLabel}</div> : null}
+                </>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+const SnapshotTreeView: FC<{ snapshot: SnapshotResponse | null }> = ({ snapshot }) => {
+  const treeData = buildSnapshotTree(snapshot)
+
+  if (!treeData.length) {
+    return <Text type="secondary">no snapshot tree</Text>
+  }
+
+  const toAntdTreeNode = (node: SnapshotTreeNode): DataNode => {
+    return {
+      key: node.id,
+      title: (
+        <Space size={4} wrap>
+          <Text code>{node.kind}</Text>
+          <Text strong>{node.id}</Text>
+          {node.label ? <Text type="secondary">{node.label}</Text> : null}
+          {node.clickable ? <Tag color="blue">clickable</Tag> : null}
+        </Space>
+      ),
+      children: node.children.map(toAntdTreeNode),
+    }
+  }
+
+  return (
+    <div className="snapshot-tree-shell">
+      <Tree
+        blockNode
+        defaultExpandAll
+        selectable={false}
+        showLine
+        treeData={treeData.map(toAntdTreeNode)}
+      />
+    </div>
+  )
+}
 
 const App: FC = () => {
   const { message } = AntdApp.useApp()
@@ -68,6 +332,51 @@ const App: FC = () => {
   const [logsForm] = Form.useForm()
   const [stateForm] = Form.useForm()
   const [snapshotForm] = Form.useForm()
+
+  const snapshotTypeOptions = Array.from(
+    new Set((snapshot?.nodes || []).map((item) => item.type).filter(Boolean))
+  ).map((item) => ({
+    label: item as string,
+    value: item as string,
+  }))
+
+  const actionColumns: ColumnsType<ActionCatalogResponse['items'][number]> = [
+    {
+      title: 'targetId',
+      dataIndex: 'targetId',
+      width: 180,
+      render: (value) => <Text strong>{value}</Text>,
+    },
+    {
+      title: 'type',
+      dataIndex: 'targetType',
+      width: 120,
+      render: (value) => <Tag>{value}</Tag>,
+    },
+    {
+      title: 'screen',
+      dataIndex: 'screen',
+      width: 140,
+      render: (value) => <Tag>{value}</Tag>,
+    },
+    {
+      title: 'actions',
+      key: 'actions',
+      render: (_, item) => (
+        <Space size={4} wrap>
+          {item.actions.map((action) => (
+            <Button
+              size="small"
+              key={`${item.targetId}-${action.name}`}
+              onClick={() => void runAction(action.example)}
+            >
+              {action.name}
+            </Button>
+          ))}
+        </Space>
+      ),
+    },
+  ]
 
   async function loadHelp() {
     const result = await fetchJSON<HelpResponse>('/help')
@@ -97,8 +406,14 @@ const App: FC = () => {
   }
 
   async function loadSnapshot(values?: Record<string, unknown>) {
-    const formValues = values ?? snapshotForm.getFieldsValue()
+    const formValues = normalizeSnapshotQuery(values ?? snapshotForm.getFieldsValue())
     const result = await fetchJSON<SnapshotResponse>(`/snapshot${buildQuery(formValues)}`)
+    setSnapshot(result)
+    return result
+  }
+
+  async function loadSnapshotSummary() {
+    const result = await fetchJSON<SnapshotResponse>('/snapshot')
     setSnapshot(result)
     return result
   }
@@ -110,7 +425,7 @@ const App: FC = () => {
         loadActions({}),
         loadLogs({}),
         loadState({}),
-        loadSnapshot({}),
+        loadSnapshot(),
       ])
     } catch (error) {
       message.error(String((error as Error).message || error))
@@ -126,7 +441,7 @@ const App: FC = () => {
       })
       setActionResult(result)
       message.success(result.message)
-      await Promise.all([loadHelp(), loadLogs({}), loadState({}), loadSnapshot({})])
+      await Promise.all([loadHelp(), loadLogs({}), loadState({}), loadSnapshot()])
     } catch (error) {
       message.error(String((error as Error).message || error))
     }
@@ -165,7 +480,8 @@ const App: FC = () => {
     actionQueryForm.setFieldsValue({})
     manualActionForm.setFieldsValue({ source: 'human', args: '{}' })
     logsForm.setFieldsValue({ limit: 20 })
-    snapshotForm.setFieldsValue({ limit: 20 })
+    stateForm.setFieldsValue({})
+    snapshotForm.setFieldsValue({ limit: 200, types: [] })
     void refreshAll()
   }, [])
 
@@ -195,20 +511,12 @@ const App: FC = () => {
             </Space>
           </Card>
 
-          <Row gutter={[8, 8]}>
-            <Col xs={24} md={12} xl={6}>
-              <Card size="small"><Statistic title="Action Targets" value={help?.counts.actionTargetCount ?? 0} /></Card>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <Card size="small"><Statistic title="Logs" value={help?.counts.logCount ?? 0} /></Card>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <Card size="small"><Statistic title="State Keys" value={help?.counts.stateKeyCount ?? 0} /></Card>
-            </Col>
-            <Col xs={24} md={12} xl={6}>
-              <Card size="small"><Statistic title="Snapshot Nodes" value={help?.counts.snapshotNodeCount ?? 0} /></Card>
-            </Col>
-          </Row>
+          <Flex gap={8} wrap>
+            <Card size="small" className="stat-card"><Statistic title="Action Targets" value={help?.counts.actionTargetCount ?? 0} /></Card>
+            <Card size="small" className="stat-card"><Statistic title="Logs" value={help?.counts.logCount ?? 0} /></Card>
+            <Card size="small" className="stat-card"><Statistic title="State Keys" value={help?.counts.stateKeyCount ?? 0} /></Card>
+            <Card size="small" className="stat-card"><Statistic title="Snapshot Nodes" value={help?.counts.snapshotNodeCount ?? 0} /></Card>
+          </Flex>
 
           <Tabs
             size="small"
@@ -220,17 +528,17 @@ const App: FC = () => {
                   <Space direction="vertical" size={8} style={{ display: 'flex' }}>
                     <Card size="small" title="Query">
                       <Form form={logsForm} layout="vertical" size="small">
-                        <Row gutter={[8, 8]}>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="event" name="event"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="level" name="level"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="source" name="source"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="targetId" name="targetId"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="screen" name="screen"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="from" name="from"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="to" name="to"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="limit" name="limit"><InputNumber style={compactNumberStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="keyword" name="keyword"><Input style={compactInputStyle} /></Form.Item></Col>
-                        </Row>
+                        <Flex gap={8} wrap>
+                          <div className="query-cell"><Form.Item name="event"><FloatLabel label="event" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="level"><FloatLabel label="level" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="source"><FloatLabel label="source" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="targetId"><FloatLabel label="targetId" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="screen"><FloatLabel label="screen" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="from"><FloatLabel label="from" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="to"><FloatLabel label="to" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell query-cell--number"><Form.Item name="limit"><FloatLabel label="limit" size="small"><InputNumber size="small" style={compactNumberStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="keyword"><FloatLabel label="keyword" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                        </Flex>
                         <Space size={8} wrap>
                           <Button size="small" type="primary" onClick={() => void loadLogs()}>Query Logs</Button>
                           <Button size="small" onClick={() => void loadLogs({})}>Summary</Button>
@@ -239,13 +547,11 @@ const App: FC = () => {
                       </Form>
                     </Card>
 
-                    {logs?.summary ? (
-                      <Card size="small" title="J">
-                        <pre>{prettyJSON(logs.summary)}</pre>
-                      </Card>
-                    ) : null}
-
-                    <Card size="small" title="Table">
+                    <Card
+                      size="small"
+                      title="Table"
+                      extra={<JsonInfoButton title="Logs JSON" value={logs} />}
+                    >
                       <Table
                         size="small"
                         rowKey="seq"
@@ -265,53 +571,41 @@ const App: FC = () => {
                   <Space direction="vertical" size={8} style={{ display: 'flex' }}>
                     <Card size="small" title="Query">
                       <Form form={actionQueryForm} layout="vertical" size="small">
-                        <Row gutter={[8, 8]}>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="targetId" name="targetId"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="action" name="action"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="screen" name="screen"><Input style={compactInputStyle} /></Form.Item></Col>
-                        </Row>
+                        <Flex gap={8} wrap>
+                          <div className="query-cell"><Form.Item name="targetId"><FloatLabel label="targetId" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="action"><FloatLabel label="action" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="screen"><FloatLabel label="screen" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                        </Flex>
                         <Button size="small" type="primary" onClick={() => void loadActions()}>Load Actions</Button>
                       </Form>
                     </Card>
 
-                    <Card size="small" title="Dynamic Buttons">
-                      <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                        {actions?.items.map((item) => (
-                          <Card key={item.targetId} size="small">
-                            <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                              <Space size={4} wrap>
-                                <Text strong>{item.targetId}</Text>
-                                <Tag>{item.targetType}</Tag>
-                                <Tag>{item.screen}</Tag>
-                              </Space>
-                              <Space size={4} wrap>
-                                {item.actions.map((action) => (
-                                  <Button size="small" key={`${item.targetId}-${action.name}`} onClick={() => void runAction(action.example)}>
-                                    {action.name}
-                                  </Button>
-                                ))}
-                              </Space>
-                            </Space>
-                          </Card>
-                        ))}
-                      </Space>
-                    </Card>
-
-                    <Card size="small" title="Catalog JSON">
-                      <pre>{prettyJSON(actions || {})}</pre>
+                    <Card
+                      size="small"
+                      title="Action Table"
+                      extra={<JsonInfoButton title="Action Catalog JSON" value={actions} />}
+                    >
+                      <Table
+                        size="small"
+                        rowKey="targetId"
+                        columns={actionColumns}
+                        dataSource={actions?.items || []}
+                        pagination={false}
+                        scroll={{ x: 760 }}
+                      />
                     </Card>
 
                     <Card size="small" title="Manual Action">
                       <Form form={manualActionForm} layout="vertical" size="small">
-                        <Row gutter={[8, 8]}>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="action" name="action" rules={[{ required: true }]}><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="targetId" name="targetId" rules={[{ required: true }]}><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="source" name="source"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="text" name="text"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="dx" name="dx"><InputNumber style={compactNumberStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="dy" name="dy"><InputNumber style={compactNumberStyle} /></Form.Item></Col>
-                        </Row>
-                        <Form.Item label="args JSON" name="args"><Input.TextArea rows={4} /></Form.Item>
+                        <Flex gap={8} wrap>
+                          <div className="query-cell"><Form.Item name="action" rules={[{ required: true }]}><FloatLabel label="action" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="targetId" rules={[{ required: true }]}><FloatLabel label="targetId" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="source"><FloatLabel label="source" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="text"><FloatLabel label="text" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell query-cell--number"><Form.Item name="dx"><FloatLabel label="dx" size="small"><InputNumber size="small" style={compactNumberStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell query-cell--number"><Form.Item name="dy"><FloatLabel label="dy" size="small"><InputNumber size="small" style={compactNumberStyle} /></FloatLabel></Form.Item></div>
+                        </Flex>
+                        <Form.Item name="args"><FloatLabel label="args JSON" size="small"><Input.TextArea rows={4} /></FloatLabel></Form.Item>
                         <Space size={8}>
                           <Button size="small" type="primary" onClick={() => void runManualAction()}>Send Action</Button>
                         </Space>
@@ -319,7 +613,7 @@ const App: FC = () => {
                     </Card>
 
                     <Card size="small" title="Latest Result">
-                      <pre>{prettyJSON(actionResult || {})}</pre>
+                      {renderJson(actionResult)}
                     </Card>
                   </Space>
                 ),
@@ -331,11 +625,11 @@ const App: FC = () => {
                   <Space direction="vertical" size={8} style={{ display: 'flex' }}>
                     <Card size="small" title="Query">
                       <Form form={stateForm} layout="vertical" size="small">
-                        <Row gutter={[8, 8]}>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="keys" name="keys"><Input style={compactInputStyle} placeholder="counter,enabled" /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="targetId" name="targetId"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="scope" name="scope"><Input style={compactInputStyle} placeholder="app / target / branch" /></Form.Item></Col>
-                        </Row>
+                        <Flex gap={8} wrap>
+                          <div className="query-cell"><Form.Item name="keys"><FloatLabel label="keys" size="small"><Input size="small" style={compactInputStyle} placeholder="counter,enabled" /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="targetId"><FloatLabel label="targetId" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="scope"><FloatLabel label="scope" size="small"><Select {...commonSelectProps} allowClear options={stateScopeOptions} /></FloatLabel></Form.Item></div>
+                        </Flex>
                         <Space size={8}>
                           <Button size="small" type="primary" onClick={() => void loadState()}>Query State</Button>
                           <Button size="small" onClick={() => void loadState({})}>Summary</Button>
@@ -344,7 +638,7 @@ const App: FC = () => {
                     </Card>
 
                     <Card size="small" title="JSON">
-                      <pre>{prettyJSON(stateData || {})}</pre>
+                      {renderJson(stateData)}
                     </Card>
                   </Space>
                 ),
@@ -356,28 +650,42 @@ const App: FC = () => {
                   <Space direction="vertical" size={8} style={{ display: 'flex' }}>
                     <Card size="small" title="Query">
                       <Form form={snapshotForm} layout="vertical" size="small">
-                        <Row gutter={[8, 8]}>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="targetId" name="targetId"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="scope" name="scope"><Input style={compactInputStyle} placeholder="self / branchToRoot / subtree" /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="depth" name="depth"><InputNumber style={compactNumberStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="types" name="types"><Input style={compactInputStyle} placeholder="Button,Text" /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="textKeyword" name="textKeyword"><Input style={compactInputStyle} /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="visible" name="visible"><Input style={compactInputStyle} placeholder="true / false" /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="enabled" name="enabled"><Input style={compactInputStyle} placeholder="true / false" /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="clickable" name="clickable"><Input style={compactInputStyle} placeholder="true / false" /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="fields" name="fields"><Input style={compactInputStyle} placeholder="id,type,text,bounds" /></Form.Item></Col>
-                          <Col xs={12} md={8} xl={4}><Form.Item label="limit" name="limit"><InputNumber style={compactNumberStyle} /></Form.Item></Col>
-                        </Row>
+                        <Flex gap={8} wrap>
+                          <div className="query-cell"><Form.Item name="targetId"><FloatLabel label="targetId" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="scope"><FloatLabel label="scope" size="small"><Select {...commonSelectProps} allowClear options={snapshotScopeOptions} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell query-cell--number"><Form.Item name="depth"><FloatLabel label="depth" size="small"><InputNumber size="small" style={compactNumberStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell query-cell--wide"><Form.Item name="types"><FloatLabel label="types" size="small"><Select {...commonSelectProps} mode="multiple" allowClear options={snapshotTypeOptions} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="textKeyword"><FloatLabel label="textKeyword" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="visible"><FloatLabel label="visible" size="small"><Select {...commonSelectProps} allowClear options={triStateOptions} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="enabled"><FloatLabel label="enabled" size="small"><Select {...commonSelectProps} allowClear options={triStateOptions} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell"><Form.Item name="clickable"><FloatLabel label="clickable" size="small"><Select {...commonSelectProps} allowClear options={triStateOptions} /></FloatLabel></Form.Item></div>
+                          <div className="query-cell query-cell--number"><Form.Item name="limit"><FloatLabel label="limit" size="small"><InputNumber size="small" style={compactNumberStyle} /></FloatLabel></Form.Item></div>
+                        </Flex>
                         <Space size={8}>
                           <Button size="small" type="primary" onClick={() => void loadSnapshot()}>Query Snapshot</Button>
-                          <Button size="small" onClick={() => void loadSnapshot({})}>Summary</Button>
+                          <Button size="small" onClick={() => void loadSnapshotSummary()}>Summary</Button>
                         </Space>
                       </Form>
                     </Card>
 
-                    <Card size="small" title="JSON">
-                      <pre>{prettyJSON(snapshot || {})}</pre>
-                    </Card>
+                    <Flex gap={8} wrap align="start">
+                      <Card
+                        size="small"
+                        title="Preview"
+                        extra={<JsonInfoButton title="Snapshot JSON" value={snapshot} maxHeight={360} />}
+                        className="snapshot-pane-card snapshot-pane-card--preview"
+                      >
+                        <SnapshotPreview snapshot={snapshot} />
+                      </Card>
+
+                      <Card
+                        size="small"
+                        title="Tree"
+                        className="snapshot-pane-card snapshot-pane-card--tree"
+                      >
+                        <SnapshotTreeView snapshot={snapshot} />
+                      </Card>
+                    </Flex>
                   </Space>
                 ),
               },
@@ -387,7 +695,7 @@ const App: FC = () => {
                 children: (
                   <Space direction="vertical" size={8} style={{ display: 'flex' }}>
                     <Card size="small" title="JSON">
-                      <pre>{prettyJSON(help || {})}</pre>
+                      {renderJson(help)}
                     </Card>
                   </Space>
                 ),

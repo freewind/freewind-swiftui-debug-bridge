@@ -113,6 +113,10 @@ export type SnapshotNode = {
   }
 }
 
+export type SnapshotPreviewNode = SnapshotNode & {
+  bounds: NonNullable<SnapshotNode['bounds']>
+}
+
 export type SnapshotResponse = {
   summary?: {
     screen: string

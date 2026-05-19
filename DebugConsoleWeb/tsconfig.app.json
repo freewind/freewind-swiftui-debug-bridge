@@ -11,6 +11,11 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@freewind/FloatLabel": ["./node_modules/freewind-antd-components/src/components/FloatLabel/FloatLabel.tsx"],
+      "@freewind/JsonPreviewer": ["./node_modules/freewind-antd-components/src/components/JsonPreviewer/JsonPreviewer.tsx"]
+    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
