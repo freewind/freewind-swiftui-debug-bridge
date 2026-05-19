@@ -17,8 +17,8 @@
 
 1. 顶层持有一个 `DebugBridge`
 2. 根 view 注入 `.environment(bridge.registry)`
-3. 关键组件加 `.debugNode(...)`
-4. 常见人类交互尽量经 `.debugTapAction(...)` / `.debugValueChange(...)` / `Binding.debugTracked(...)`
+3. 关键组件尽量只写 1 个 `.debugNode(...)`
+4. 常见人类交互尽量经 `debugBridge.tracked(...)` / `debugBridge.wrapNodeAction(...)`
 5. 启动时注册可被外部调用的动作
 
 ## 最小接入示例
@@ -64,7 +64,6 @@ final class DemoShell {
 
 struct ContentView: View {
     @Environment(DemoShell.self) private var shell
-    @Environment(DebugRegistry.self) private var registry
 
     var body: some View {
         Button("Increment") {
@@ -74,9 +73,9 @@ struct ContentView: View {
             id: "increment_button",
             role: "button",
             label: "Increment button",
-            actions: ["press"]
+            actions: ["press"],
+            tapAction: "tap"
         )
-        .debugTapAction(id: "increment_button", action: "tap")
         .onAppear {
             shell.debugBridge.registerNodeAction(id: "increment_button", action: "press") { [store = shell.store] in
                 store.increment()
@@ -163,21 +162,19 @@ shell.debugBridge.recordEvent(
 
 高频做法：
 
-- `Button` / 普通点击：`.debugTapAction(id: "save_button")`
-- 长按：`.debugLongPressAction(id: "card_1")`
+- `Button` / 普通点击：`.debugNode(..., tapAction: "tap")`
+- 长按：`.debugNode(..., longPress: .init())`
 - 任意值变化：`.debugValueChange(id: "counter_text", value: store.counter, action: "counter_change")`
-- `Toggle` / `TextField` / `Picker` / `Stepper` 这类 `Binding` 控件：`$value.debugTracked(by: registry, id: "username_field", action: "edit")`
-- 手写 closure：`registry.wrapNodeAction(id: "save_button", action: "press") { save() }`
+- `Toggle` / `TextField` / `Picker` / `Stepper`：`shell.debugBridge.tracked($value, id: "username_field", action: "edit")`
+- 手写 closure：`shell.debugBridge.wrapNodeAction(id: "save_button", action: "press") { save() }`
 
-`Binding.debugTracked(...)` 示例：
+低侵入示例：
 
 ```swift
-@Environment(DebugRegistry.self) private var registry
-
 Toggle(
     "Enabled",
-    isOn: $store.enabled.debugTracked(
-        by: registry,
+    isOn: shell.debugBridge.tracked(
+        $store.enabled,
         id: "enabled_toggle",
         action: "toggle"
     )
@@ -185,8 +182,8 @@ Toggle(
 
 TextField(
     "Username",
-    text: $store.username.debugTracked(
-        by: registry,
+    text: shell.debugBridge.tracked(
+        $store.username,
         id: "username_field",
         action: "input"
     )
@@ -198,7 +195,7 @@ closure 包装示例：
 ```swift
 Button(
     "Save",
-    action: registry.wrapNodeAction(
+    action: shell.debugBridge.wrapNodeAction(
         id: "save_button",
         action: "press"
     ) {
@@ -207,4 +204,14 @@ Button(
 )
 ```
 
-这层目的：尽量把常见 human 行为收口成统一事件，AI 先看 `/events`，再按需补抓最小 `snapshot/query`。
+若只想挂节点、不想顺带 tap/longPress：
+
+```swift
+.debugNodeStatic(
+    id: "sidebar_title",
+    role: "text",
+    label: "Sidebar title"
+)
+```
+
+这层目的：默认 1 个 `.debugNode(...)` 吃掉节点 + 常见点击，其他场景尽量只碰 `debugBridge`，少直接碰 `registry`。

@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 // 对业务暴露的总入口。
 @Observable
@@ -112,6 +113,99 @@ public final class DebugBridge {
             ok: ok,
             message: message,
             metadata: metadata
+        )
+    }
+
+    // 显式记录节点事件。
+    public func recordNodeEvent(
+        source: String = "human",
+        id: String,
+        action: String,
+        ok: Bool? = nil,
+        message: String? = nil,
+        metadata: [String: String] = [:]
+    ) {
+        registry.recordNodeEvent(
+            source: source,
+            id: id,
+            action: action,
+            ok: ok,
+            message: message,
+            metadata: metadata
+        )
+    }
+
+    // 显式记录值变化。
+    public func recordValueChange(
+        source: String = "human",
+        id: String,
+        action: String = "change",
+        oldValue: String? = nil,
+        newValue: String? = nil,
+        message: String? = nil,
+        metadata: [String: String] = [:]
+    ) {
+        registry.recordValueChange(
+            source: source,
+            id: id,
+            action: action,
+            oldValue: oldValue,
+            newValue: newValue,
+            message: message,
+            metadata: metadata
+        )
+    }
+
+    // 包装常见人类操作。
+    public func wrapNodeAction(
+        source: String = "human",
+        id: String,
+        action: String,
+        metadata: [String: String] = [:],
+        perform: @escaping @MainActor () -> Void
+    ) -> @MainActor () -> Void {
+        registry.wrapNodeAction(
+            source: source,
+            id: id,
+            action: action,
+            metadata: metadata,
+            perform: perform
+        )
+    }
+
+    // 包装返回结果的操作。
+    public func wrapNodeAction(
+        source: String = "human",
+        id: String,
+        action: String,
+        metadata: [String: String] = [:],
+        perform: @escaping @MainActor () -> DebugActionResponse
+    ) -> @MainActor () -> DebugActionResponse {
+        registry.wrapNodeAction(
+            source: source,
+            id: id,
+            action: action,
+            metadata: metadata,
+            perform: perform
+        )
+    }
+
+    // 包装 Binding，减少业务侧直接碰 registry。
+    public func tracked<Value>(
+        _ binding: Binding<Value>,
+        id: String,
+        action: String = "change",
+        source: String = "human",
+        metadata: [String: String] = [:],
+        describe: @escaping (Value) -> String = { String(describing: $0) }
+    ) -> Binding<Value> {
+        binding.debugTracked(
+            by: registry,
+            id: id,
+            action: action,
+            source: source,
+            metadata: metadata,
+            describe: describe
         )
     }
 }

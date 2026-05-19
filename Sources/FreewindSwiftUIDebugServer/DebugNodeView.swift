@@ -1,6 +1,26 @@
 import AppKit
 import SwiftUI
 
+// 长按配置。
+public struct DebugLongPressConfig: Sendable {
+    public let action: String
+    public let source: String
+    public let minimumDuration: Double
+    public let metadata: [String: String]
+
+    public init(
+        action: String = "long_press",
+        source: String = "human",
+        minimumDuration: Double = 0.5,
+        metadata: [String: String] = [:]
+    ) {
+        self.action = action
+        self.source = source
+        self.minimumDuration = minimumDuration
+        self.metadata = metadata
+    }
+}
+
 // 点击后记一条节点事件。
 private struct DebugTapRecorderModifier: ViewModifier {
     let id: String
@@ -224,7 +244,55 @@ public struct DebugNodeModifier: ViewModifier {
 // 提供简洁埋点入口。
 public extension View {
     // 给关键节点挂稳定 debug 信息。
-    func debugNode(id: String, role: String, label: String, actions: [String] = []) -> some View {
+    func debugNode(
+        id: String,
+        role: String,
+        label: String,
+        actions: [String] = [],
+        tapAction: String? = nil,
+        tapSource: String = "human",
+        tapMetadata: [String: String] = [:],
+        longPress: DebugLongPressConfig? = nil
+    ) -> some View {
+        var result = AnyView(
+            modifier(
+                DebugNodeModifier(
+                    id: id,
+                    role: role,
+                    label: label,
+                    actions: actions
+                )
+            )
+        )
+
+        if let tapAction {
+            result = AnyView(
+                result.debugTapAction(
+                    id: id,
+                    action: tapAction,
+                    source: tapSource,
+                    metadata: tapMetadata
+                )
+            )
+        }
+
+        if let longPress {
+            result = AnyView(
+                result.debugLongPressAction(
+                    id: id,
+                    action: longPress.action,
+                    source: longPress.source,
+                    minimumDuration: longPress.minimumDuration,
+                    metadata: longPress.metadata
+                )
+            )
+        }
+
+        return result
+    }
+
+    // 只挂节点，不带交互追踪。
+    func debugNodeStatic(id: String, role: String, label: String, actions: [String] = []) -> some View {
         modifier(
             DebugNodeModifier(
                 id: id,
