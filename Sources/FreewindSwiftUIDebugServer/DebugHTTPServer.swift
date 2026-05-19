@@ -7,6 +7,10 @@ final class DebugHTTPServer: @unchecked Sendable {
     private let port: UInt16
     // 生成 snapshot。
     private let getSnapshot: @Sendable () async -> DebugSnapshot
+    // 按条件生成 snapshot。
+    private let querySnapshot: @Sendable (DebugSnapshotQuery) async -> DebugSnapshotResponse
+    // 拉取最近事件。
+    private let getEvents: @Sendable (DebugEventQuery) async -> DebugEventResponse
     // 执行动作。
     private let performAction: @Sendable (DebugActionRequest) async -> DebugActionResponse
     // 底层 listener。
@@ -16,10 +20,14 @@ final class DebugHTTPServer: @unchecked Sendable {
     init(
         port: UInt16,
         getSnapshot: @escaping @Sendable () async -> DebugSnapshot,
+        querySnapshot: @escaping @Sendable (DebugSnapshotQuery) async -> DebugSnapshotResponse,
+        getEvents: @escaping @Sendable (DebugEventQuery) async -> DebugEventResponse,
         performAction: @escaping @Sendable (DebugActionRequest) async -> DebugActionResponse
     ) {
         self.port = port
         self.getSnapshot = getSnapshot
+        self.querySnapshot = querySnapshot
+        self.getEvents = getEvents
         self.performAction = performAction
     }
 
@@ -93,13 +101,27 @@ final class DebugHTTPServer: @unchecked Sendable {
         }
         let method = String(requestLine[0])
         let path = String(requestLine[1])
+        let url = URL(string: "http://127.0.0.1\(path)")
+        let routePath = url?.path ?? path
 
-        if method == "GET", path == "/snapshot" {
+        if method == "GET", routePath == "/snapshot" {
             let snapshot = await getSnapshot()
             return try httpResponse(status: "200 OK", encodableBody: snapshot)
         }
 
-        if method == "POST", path == "/action" {
+        if method == "POST", routePath == "/snapshot/query" {
+            let query = try JSONDecoder().decode(DebugSnapshotQuery.self, from: Data(bodyText.utf8))
+            let snapshot = await querySnapshot(query)
+            return try httpResponse(status: "200 OK", encodableBody: snapshot)
+        }
+
+        if method == "GET", routePath == "/events" {
+            let query = eventQuery(from: url)
+            let events = await getEvents(query)
+            return try httpResponse(status: "200 OK", encodableBody: events)
+        }
+
+        if method == "POST", routePath == "/action" {
             let request = try JSONDecoder().decode(DebugActionRequest.self, from: Data(bodyText.utf8))
             let result = await performAction(request)
             return try httpResponse(
@@ -109,6 +131,38 @@ final class DebugHTTPServer: @unchecked Sendable {
         }
 
         return httpResponse(status: "404 Not Found", body: #"{"ok":false,"message":"Not found"}"#)
+    }
+
+    private func eventQuery(from url: URL?) -> DebugEventQuery {
+        guard
+            let url,
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else {
+            return DebugEventQuery()
+        }
+
+        let queryItems = (components.queryItems ?? []).reduce(into: [String: String]()) { result, item in
+            result[item.name] = item.value ?? ""
+        }
+
+        return DebugEventQuery(
+            afterSequence: Int(queryItems["after"] ?? "") ?? 0,
+            limit: Int(queryItems["limit"] ?? "") ?? 50,
+            sources: splitCSV(queryItems["source"]),
+            kinds: splitCSV(queryItems["kind"]),
+            ids: splitCSV(queryItems["id"])
+        )
+    }
+
+    private func splitCSV(_ value: String?) -> [String]? {
+        guard let value, !value.isEmpty else {
+            return nil
+        }
+        let items = value
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return items.isEmpty ? nil : items
     }
 
     // 发响应。

@@ -3,6 +3,8 @@ import SwiftUI
 
 // 透明追踪视图，负责回传 frame 与销毁事件。
 final class DebugTrackingView: NSView {
+    // 当前节点 id。
+    var debugNodeID: String?
     // 布局更新回调。
     var onUpdate: ((NSView) -> Void)?
     // 移除回调。
@@ -55,6 +57,7 @@ struct DebugFrameReporter: NSViewRepresentable {
     // 创建追踪 view。
     func makeNSView(context: Context) -> DebugTrackingView {
         let view = DebugTrackingView()
+        view.debugNodeID = id
         view.onUpdate = { trackedView in
             updateSnapshot(from: trackedView)
         }
@@ -69,6 +72,7 @@ struct DebugFrameReporter: NSViewRepresentable {
 
     // 刷新追踪 view。
     func updateNSView(_ nsView: DebugTrackingView, context: Context) {
+        nsView.debugNodeID = id
         nsView.onUpdate = { trackedView in
             updateSnapshot(from: trackedView)
         }
@@ -96,6 +100,7 @@ struct DebugFrameReporter: NSViewRepresentable {
         registry.upsert(
             DebugNodeSnapshot(
                 id: id,
+                parentID: parentDebugNodeID(from: view.superview),
                 role: role,
                 label: label,
                 x: frame.minX,
@@ -106,6 +111,18 @@ struct DebugFrameReporter: NSViewRepresentable {
                 actions: actions
             )
         )
+    }
+
+    // 沿 superview 找最近的 debug 父节点。
+    private func parentDebugNodeID(from view: NSView?) -> String? {
+        var current = view
+        while let current {
+            if let trackingView = current as? DebugTrackingView, trackingView.debugNodeID != id {
+                return trackingView.debugNodeID
+            }
+            current = current.superview
+        }
+        return nil
     }
 }
 
