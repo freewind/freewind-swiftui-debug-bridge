@@ -9,7 +9,31 @@ body {
 }
 
 .page {
-  padding: 24px;
+  padding: 12px;
+}
+
+.page .ant-form-item {
+  margin-bottom: 8px;
+}
+
+.page .ant-card-head {
+  min-height: 36px;
+}
+
+.page .ant-card-head-title {
+  padding: 8px 0;
+}
+
+.page .ant-card-body {
+  padding: 12px;
+}
+
+.page .ant-statistic {
+  line-height: 1.2;
+}
+
+.page .ant-statistic-content {
+  font-size: 20px;
 }
 
 .page pre {
