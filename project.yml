@@ -1,0 +1,45 @@
+name: FreewindSwiftUIDebugServer
+options:
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: 6.2
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+targets:
+  FreewindSwiftUIDebugServer:
+    type: framework
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Sources/FreewindSwiftUIDebugServer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: li.freewind.FreewindSwiftUIDebugServer
+        GENERATE_INFOPLIST_FILE: YES
+        DEFINES_MODULE: YES
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+  FreewindSwiftUIDebugServerDemoApp:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    productName: FreewindSwiftUIDebugServerDemoApp
+    sources:
+      - path: DemoApp
+    dependencies:
+      - target: FreewindSwiftUIDebugServer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: li.freewind.FreewindSwiftUIDebugServerDemoApp
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+schemes:
+  FreewindSwiftUIDebugServerDemoApp:
+    build:
+      targets:
+        FreewindSwiftUIDebugServerDemoApp: all
+    run:
+      config: Debug
+    archive:
+      config: Release

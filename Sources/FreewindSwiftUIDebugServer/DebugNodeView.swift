@@ -196,11 +196,11 @@ struct DebugFrameReporter: NSViewRepresentable {
     // 沿 superview 找最近的 debug 父节点。
     private func parentDebugNodeID(from view: NSView?) -> String? {
         var current = view
-        while let current {
-            if let trackingView = current as? DebugTrackingView, trackingView.debugNodeID != id {
+        while let currentView = current {
+            if let trackingView = currentView as? DebugTrackingView, trackingView.debugNodeID != id {
                 return trackingView.debugNodeID
             }
-            current = current.superview
+            current = currentView.superview
         }
         return nil
     }

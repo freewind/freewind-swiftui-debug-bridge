@@ -254,11 +254,11 @@ public final class DebugRegistry {
                     map[parent.id] = parent
                 }
                 currentParentID = parent.parentID
-                if let remainingDepth {
-                    if remainingDepth <= 1 {
+                if let depthLimit = remainingDepth {
+                    if depthLimit <= 1 {
                         break
                     }
-                    remainingDepth = remainingDepth - 1
+                    remainingDepth = depthLimit - 1
                 }
             }
         }
