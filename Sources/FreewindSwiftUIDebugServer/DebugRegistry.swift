@@ -61,7 +61,7 @@ public final class DebugRegistry {
                 DebugEndpointDescriptor(
                     method: "GET",
                     path: "/",
-                    summary: "reserved for future html console"
+                    summary: "open human-readable debug console"
                 ),
                 DebugEndpointDescriptor(
                     method: "GET",
@@ -106,6 +106,7 @@ public final class DebugRegistry {
             ],
             examples: [
                 "GET /help",
+                "GET /",
                 "GET /action",
                 "GET /logs",
                 "DELETE /logs",

@@ -241,6 +241,7 @@ public struct DebugLogEntry: Codable, Sendable {
 
 // logs query。
 public struct DebugLogsQuery: Sendable {
+    public let isQueryRequest: Bool
     public let event: String?
     public let level: String?
     public let source: String?
@@ -252,6 +253,7 @@ public struct DebugLogsQuery: Sendable {
     public let keyword: String?
 
     public init(
+        isQueryRequest: Bool = false,
         event: String? = nil,
         level: String? = nil,
         source: String? = nil,
@@ -262,6 +264,7 @@ public struct DebugLogsQuery: Sendable {
         limit: Int = 20,
         keyword: String? = nil
     ) {
+        self.isQueryRequest = isQueryRequest
         self.event = event
         self.level = level
         self.source = source
@@ -274,7 +277,8 @@ public struct DebugLogsQuery: Sendable {
     }
 
     public var hasFilters: Bool {
-        event != nil
+        isQueryRequest
+            || event != nil
             || level != nil
             || source != nil
             || targetId != nil
@@ -335,22 +339,25 @@ public struct DebugTimeRange: Codable, Sendable {
 
 // state query。
 public struct DebugStateQuery: Sendable {
+    public let isQueryRequest: Bool
     public let keys: [String]
     public let targetId: String?
     public let scope: String?
 
     public init(
+        isQueryRequest: Bool = false,
         keys: [String] = [],
         targetId: String? = nil,
         scope: String? = nil
     ) {
+        self.isQueryRequest = isQueryRequest
         self.keys = keys
         self.targetId = targetId
         self.scope = scope
     }
 
     public var hasFilters: Bool {
-        !keys.isEmpty || targetId != nil || scope != nil
+        isQueryRequest || !keys.isEmpty || targetId != nil || scope != nil
     }
 }
 
@@ -392,6 +399,7 @@ public struct DebugStateKeySample: Codable, Sendable {
 
 // snapshot query。
 public struct DebugSnapshotQuery: Sendable {
+    public let isQueryRequest: Bool
     public let targetId: String?
     public let scope: String?
     public let depth: Int?
@@ -404,6 +412,7 @@ public struct DebugSnapshotQuery: Sendable {
     public let limit: Int
 
     public init(
+        isQueryRequest: Bool = false,
         targetId: String? = nil,
         scope: String? = nil,
         depth: Int? = nil,
@@ -415,6 +424,7 @@ public struct DebugSnapshotQuery: Sendable {
         fields: [String] = [],
         limit: Int = 20
     ) {
+        self.isQueryRequest = isQueryRequest
         self.targetId = targetId
         self.scope = scope
         self.depth = depth
@@ -428,7 +438,8 @@ public struct DebugSnapshotQuery: Sendable {
     }
 
     public var hasFilters: Bool {
-        targetId != nil
+        isQueryRequest
+            || targetId != nil
             || scope != nil
             || depth != nil
             || !types.isEmpty

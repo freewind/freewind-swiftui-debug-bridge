@@ -150,12 +150,11 @@ final class DebugHTTPServer: @unchecked Sendable {
     }
 
     private func route(_ request: HTTPRequest) async throws -> Data {
+        if let staticResponse = try staticResponse(for: request.path) {
+            return staticResponse
+        }
+
         switch (request.method, request.path) {
-        case ("GET", "/"):
-            return jsonErrorResponse(
-                status: "501 Not Implemented",
-                message: "html console not implemented yet"
-            )
         case ("GET", "/help"):
             return try jsonResponse(status: "200 OK", body: await getHelp())
         case ("GET", "/action"):
@@ -192,6 +191,43 @@ final class DebugHTTPServer: @unchecked Sendable {
         }
     }
 
+    private func staticResponse(for path: String) throws -> Data? {
+        let rootURL = webConsoleRootURL
+        let relativePath = path == "/" ? "index.html" : String(path.drop(while: { $0 == "/" }))
+        guard !relativePath.isEmpty else {
+            return nil
+        }
+
+        let fileURL = rootURL.appendingPathComponent(relativePath)
+        let standardizedRoot = rootURL.standardizedFileURL.path
+        let standardizedFile = fileURL.standardizedFileURL.path
+        guard standardizedFile.hasPrefix(standardizedRoot) else {
+            return textResponse(
+                status: "400 Bad Request",
+                contentType: "text/plain; charset=utf-8",
+                body: "invalid asset path"
+            )
+        }
+
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            if path == "/" {
+                return textResponse(
+                    status: "503 Service Unavailable",
+                    contentType: "text/plain; charset=utf-8",
+                    body: "web console assets missing; run pnpm build in DebugConsoleWeb"
+                )
+            }
+            return nil
+        }
+
+        let data = try Data(contentsOf: fileURL)
+        return httpResponse(
+            status: "200 OK",
+            contentType: contentType(for: fileURL.pathExtension),
+            bodyData: data
+        )
+    }
+
     private func actionQuery(from url: URL?) -> DebugActionCatalogQuery {
         let values = queryMap(from: url)
         return DebugActionCatalogQuery(
@@ -204,6 +240,7 @@ final class DebugHTTPServer: @unchecked Sendable {
     private func logsQuery(from url: URL?) -> DebugLogsQuery {
         let values = queryMap(from: url)
         return DebugLogsQuery(
+            isQueryRequest: !values.isEmpty,
             event: values["event"],
             level: values["level"],
             source: values["source"],
@@ -219,6 +256,7 @@ final class DebugHTTPServer: @unchecked Sendable {
     private func stateQuery(from url: URL?) -> DebugStateQuery {
         let values = queryMap(from: url)
         return DebugStateQuery(
+            isQueryRequest: !values.isEmpty,
             keys: splitCSV(values["keys"]),
             targetId: values["targetId"],
             scope: values["scope"]
@@ -228,6 +266,7 @@ final class DebugHTTPServer: @unchecked Sendable {
     private func snapshotQuery(from url: URL?) -> DebugSnapshotQuery {
         let values = queryMap(from: url)
         return DebugSnapshotQuery(
+            isQueryRequest: !values.isEmpty,
             targetId: values["targetId"],
             scope: values["scope"],
             depth: Int(values["depth"] ?? ""),
@@ -303,9 +342,17 @@ final class DebugHTTPServer: @unchecked Sendable {
 
     private func jsonErrorResponse(status: String, message: String) -> Data {
         let body = #"{"accepted":false,"message":"\#(message)"}"#
-        return httpResponse(
+        return textResponse(
             status: status,
             contentType: "application/json; charset=utf-8",
+            body: body
+        )
+    }
+
+    private func textResponse(status: String, contentType: String, body: String) -> Data {
+        httpResponse(
+            status: status,
+            contentType: contentType,
             bodyData: Data(body.utf8)
         )
     }
@@ -320,5 +367,34 @@ final class DebugHTTPServer: @unchecked Sendable {
             "",
         ].joined(separator: "\r\n")
         return Data(header.utf8) + bodyData
+    }
+
+    private func contentType(for pathExtension: String) -> String {
+        switch pathExtension.lowercased() {
+        case "html":
+            return "text/html; charset=utf-8"
+        case "js":
+            return "application/javascript; charset=utf-8"
+        case "css":
+            return "text/css; charset=utf-8"
+        case "json":
+            return "application/json; charset=utf-8"
+        case "svg":
+            return "image/svg+xml"
+        case "png":
+            return "image/png"
+        case "jpg", "jpeg":
+            return "image/jpeg"
+        case "ico":
+            return "image/x-icon"
+        default:
+            return "application/octet-stream"
+        }
+    }
+
+    private var webConsoleRootURL: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("WebConsoleDist", isDirectory: true)
     }
 }

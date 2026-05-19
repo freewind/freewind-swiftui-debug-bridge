@@ -1,0 +1,19 @@
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+.page {
+  padding: 24px;
+}
+
+.page pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

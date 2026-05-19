@@ -6,6 +6,8 @@ import Observation
 final class DemoAppShell {
     let debugBridge = DebugBridge(appName: "Freewind SwiftUI Debug Server Demo")
     var counter = 0
+    var username = "freewind"
+    var enabled = true
     private var didStart = false
 
     func startIfNeeded() {
@@ -22,12 +24,52 @@ final class DemoAppShell {
             return .ok("Counter incremented")
         }
 
+        debugBridge.registerIntent(name: "reset_counter") { [weak self] in
+            guard let self else {
+                return .fail("DemoAppShell released")
+            }
+            reset()
+            return .ok("Counter reset")
+        }
+
         debugBridge.registerNodeAction(id: "increment_button", action: "press") { [weak self] in
             guard let self else {
                 return .fail("DemoAppShell released")
             }
             increment()
             return .ok("Pressed increment button")
+        }
+
+        debugBridge.registerNodeAction(id: "decrement_button", action: "press") { [weak self] in
+            guard let self else {
+                return .fail("DemoAppShell released")
+            }
+            decrement()
+            return .ok("Pressed decrement button")
+        }
+
+        debugBridge.registerNodeAction(id: "reset_button", action: "press") { [weak self] in
+            guard let self else {
+                return .fail("DemoAppShell released")
+            }
+            reset()
+            return .ok("Pressed reset button")
+        }
+
+        debugBridge.registerNodeAction(id: "fill_name_button", action: "press") { [weak self] in
+            guard let self else {
+                return .fail("DemoAppShell released")
+            }
+            fillDemoName()
+            return .ok("Filled demo name")
+        }
+
+        debugBridge.registerNodeAction(id: "enabled_toggle", action: "toggle") { [weak self] in
+            guard let self else {
+                return .fail("DemoAppShell released")
+            }
+            toggleEnabled()
+            return .ok("Toggled enabled")
         }
 
         debugBridge.start(
@@ -37,12 +79,11 @@ final class DemoAppShell {
             guard let self else {
                 return [:]
             }
-            debugBridge.publishTargetState(
-                id: "increment_button",
-                state: ["count": "\(counter)"]
-            )
+            publishDebugState()
             return [
                 "counter": "\(counter)",
+                "username": username,
+                "enabled": enabled ? "true" : "false",
                 "debugStatus": debugBridge.statusMessage,
             ]
         }
@@ -50,5 +91,48 @@ final class DemoAppShell {
 
     func increment() {
         counter += 1
+    }
+
+    func decrement() {
+        counter -= 1
+    }
+
+    func reset() {
+        counter = 0
+    }
+
+    func fillDemoName() {
+        username = "demo-\(counter)"
+    }
+
+    func toggleEnabled() {
+        enabled.toggle()
+    }
+
+    private func publishDebugState() {
+        debugBridge.publishTargetState(
+            id: "increment_button",
+            state: ["count": "\(counter)", "username": username]
+        )
+        debugBridge.publishTargetState(
+            id: "decrement_button",
+            state: ["count": "\(counter)"]
+        )
+        debugBridge.publishTargetState(
+            id: "reset_button",
+            state: ["count": "\(counter)"]
+        )
+        debugBridge.publishTargetState(
+            id: "fill_name_button",
+            state: ["username": username]
+        )
+        debugBridge.publishTargetState(
+            id: "username_input",
+            state: ["username": username]
+        )
+        debugBridge.publishTargetState(
+            id: "enabled_toggle",
+            state: ["enabled": enabled ? "true" : "false"]
+        )
     }
 }
