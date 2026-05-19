@@ -1,4 +1,4 @@
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import {
   App as AntdApp,
@@ -19,6 +19,7 @@ import {
   Tag,
   Tree,
   Typography,
+  type FormItemProps,
 } from 'antd'
 import { InfoCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -115,6 +116,32 @@ const JsonInfoButton: FC<{
         icon={<InfoCircleOutlined />}
       />
     </Popover>
+  )
+}
+
+const LabeledField: FC<{
+  name: string
+  label: string
+  className?: string
+  rules?: FormItemProps['rules']
+  children: ReactNode
+}> = ({
+  name,
+  label,
+  className,
+  rules,
+  children,
+}) => {
+  return (
+    <div className={className}>
+      <Form.Item style={{ marginBottom: 0 }}>
+        <FloatLabel label={label} size="small">
+          <Form.Item name={name} noStyle rules={rules}>
+            {children}
+          </Form.Item>
+        </FloatLabel>
+      </Form.Item>
+    </div>
   )
 }
 
@@ -529,15 +556,15 @@ const App: FC = () => {
                     <Card size="small" title="Query">
                       <Form form={logsForm} layout="vertical" size="small">
                         <Flex gap={8} wrap>
-                          <div className="query-cell"><Form.Item name="event"><FloatLabel label="event" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="level"><FloatLabel label="level" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="source"><FloatLabel label="source" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="targetId"><FloatLabel label="targetId" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="screen"><FloatLabel label="screen" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="from"><FloatLabel label="from" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="to"><FloatLabel label="to" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell query-cell--number"><Form.Item name="limit"><FloatLabel label="limit" size="small"><InputNumber size="small" style={compactNumberStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="keyword"><FloatLabel label="keyword" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <LabeledField name="event" label="event" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="level" label="level" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="source" label="source" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="targetId" label="targetId" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="screen" label="screen" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="from" label="from" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="to" label="to" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="limit" label="limit" className="query-cell query-cell--number"><InputNumber size="small" style={compactNumberStyle} /></LabeledField>
+                          <LabeledField name="keyword" label="keyword" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
                         </Flex>
                         <Space size={8} wrap>
                           <Button size="small" type="primary" onClick={() => void loadLogs()}>Query Logs</Button>
@@ -572,9 +599,9 @@ const App: FC = () => {
                     <Card size="small" title="Query">
                       <Form form={actionQueryForm} layout="vertical" size="small">
                         <Flex gap={8} wrap>
-                          <div className="query-cell"><Form.Item name="targetId"><FloatLabel label="targetId" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="action"><FloatLabel label="action" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="screen"><FloatLabel label="screen" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
+                          <LabeledField name="targetId" label="targetId" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="action" label="action" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="screen" label="screen" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
                         </Flex>
                         <Button size="small" type="primary" onClick={() => void loadActions()}>Load Actions</Button>
                       </Form>
@@ -598,14 +625,14 @@ const App: FC = () => {
                     <Card size="small" title="Manual Action">
                       <Form form={manualActionForm} layout="vertical" size="small">
                         <Flex gap={8} wrap>
-                          <div className="query-cell"><Form.Item name="action" rules={[{ required: true }]}><FloatLabel label="action" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="targetId" rules={[{ required: true }]}><FloatLabel label="targetId" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="source"><FloatLabel label="source" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="text"><FloatLabel label="text" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell query-cell--number"><Form.Item name="dx"><FloatLabel label="dx" size="small"><InputNumber size="small" style={compactNumberStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell query-cell--number"><Form.Item name="dy"><FloatLabel label="dy" size="small"><InputNumber size="small" style={compactNumberStyle} /></FloatLabel></Form.Item></div>
+                          <LabeledField name="action" label="action" className="query-cell" rules={[{ required: true }]}><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="targetId" label="targetId" className="query-cell" rules={[{ required: true }]}><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="source" label="source" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="text" label="text" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="dx" label="dx" className="query-cell query-cell--number"><InputNumber size="small" style={compactNumberStyle} /></LabeledField>
+                          <LabeledField name="dy" label="dy" className="query-cell query-cell--number"><InputNumber size="small" style={compactNumberStyle} /></LabeledField>
                         </Flex>
-                        <Form.Item name="args"><FloatLabel label="args JSON" size="small"><Input.TextArea rows={4} /></FloatLabel></Form.Item>
+                        <LabeledField name="args" label="args JSON"><Input.TextArea rows={4} /></LabeledField>
                         <Space size={8}>
                           <Button size="small" type="primary" onClick={() => void runManualAction()}>Send Action</Button>
                         </Space>
@@ -626,9 +653,9 @@ const App: FC = () => {
                     <Card size="small" title="Query">
                       <Form form={stateForm} layout="vertical" size="small">
                         <Flex gap={8} wrap>
-                          <div className="query-cell"><Form.Item name="keys"><FloatLabel label="keys" size="small"><Input size="small" style={compactInputStyle} placeholder="counter,enabled" /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="targetId"><FloatLabel label="targetId" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="scope"><FloatLabel label="scope" size="small"><Select {...commonSelectProps} allowClear options={stateScopeOptions} /></FloatLabel></Form.Item></div>
+                          <LabeledField name="keys" label="keys" className="query-cell"><Input size="small" style={compactInputStyle} placeholder="counter,enabled" /></LabeledField>
+                          <LabeledField name="targetId" label="targetId" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="scope" label="scope" className="query-cell"><Select {...commonSelectProps} allowClear options={stateScopeOptions} /></LabeledField>
                         </Flex>
                         <Space size={8}>
                           <Button size="small" type="primary" onClick={() => void loadState()}>Query State</Button>
@@ -651,15 +678,15 @@ const App: FC = () => {
                     <Card size="small" title="Query">
                       <Form form={snapshotForm} layout="vertical" size="small">
                         <Flex gap={8} wrap>
-                          <div className="query-cell"><Form.Item name="targetId"><FloatLabel label="targetId" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="scope"><FloatLabel label="scope" size="small"><Select {...commonSelectProps} allowClear options={snapshotScopeOptions} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell query-cell--number"><Form.Item name="depth"><FloatLabel label="depth" size="small"><InputNumber size="small" style={compactNumberStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell query-cell--wide"><Form.Item name="types"><FloatLabel label="types" size="small"><Select {...commonSelectProps} mode="multiple" allowClear options={snapshotTypeOptions} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="textKeyword"><FloatLabel label="textKeyword" size="small"><Input size="small" style={compactInputStyle} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="visible"><FloatLabel label="visible" size="small"><Select {...commonSelectProps} allowClear options={triStateOptions} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="enabled"><FloatLabel label="enabled" size="small"><Select {...commonSelectProps} allowClear options={triStateOptions} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell"><Form.Item name="clickable"><FloatLabel label="clickable" size="small"><Select {...commonSelectProps} allowClear options={triStateOptions} /></FloatLabel></Form.Item></div>
-                          <div className="query-cell query-cell--number"><Form.Item name="limit"><FloatLabel label="limit" size="small"><InputNumber size="small" style={compactNumberStyle} /></FloatLabel></Form.Item></div>
+                          <LabeledField name="targetId" label="targetId" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="scope" label="scope" className="query-cell"><Select {...commonSelectProps} allowClear options={snapshotScopeOptions} /></LabeledField>
+                          <LabeledField name="depth" label="depth" className="query-cell query-cell--number"><InputNumber size="small" style={compactNumberStyle} /></LabeledField>
+                          <LabeledField name="types" label="types" className="query-cell query-cell--wide"><Select {...commonSelectProps} mode="multiple" allowClear options={snapshotTypeOptions} /></LabeledField>
+                          <LabeledField name="textKeyword" label="textKeyword" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
+                          <LabeledField name="visible" label="visible" className="query-cell"><Select {...commonSelectProps} allowClear options={triStateOptions} /></LabeledField>
+                          <LabeledField name="enabled" label="enabled" className="query-cell"><Select {...commonSelectProps} allowClear options={triStateOptions} /></LabeledField>
+                          <LabeledField name="clickable" label="clickable" className="query-cell"><Select {...commonSelectProps} allowClear options={triStateOptions} /></LabeledField>
+                          <LabeledField name="limit" label="limit" className="query-cell query-cell--number"><InputNumber size="small" style={compactNumberStyle} /></LabeledField>
                         </Flex>
                         <Space size={8}>
                           <Button size="small" type="primary" onClick={() => void loadSnapshot()}>Query Snapshot</Button>
