@@ -48,6 +48,22 @@ type SnapshotTreeNode = {
   children: SnapshotTreeNode[]
 }
 
+type ActionDescriptorView = ActionCatalogResponse['items'][number]['actions'][number] & {
+  targetId: string
+  targetType: string
+  screen: string
+}
+
+type ManualActionFormValues = {
+  targetId?: string
+  action?: string
+  source?: string
+  text?: string
+  dx?: number | null
+  dy?: number | null
+  argValues?: Record<string, string>
+}
+
 const { Header, Content } = Layout
 const { Title, Text } = Typography
 const compactInputStyle = { width: '100%' } as const
@@ -87,6 +103,10 @@ const snapshotScopeOptions = [
   { label: 'branchToRoot', value: 'branchToRoot' },
   { label: 'subtree', value: 'subtree' },
 ]
+
+function buildActionKey(targetId: string, action: string) {
+  return `${targetId}::${action}`
+}
 
 function toOptions(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter((value): value is string => !!value)))
@@ -130,7 +150,7 @@ const JsonInfoButton: FC<{
 }
 
 const LabeledField: FC<{
-  name: string
+  name: FormItemProps['name']
   label: string
   className?: string
   rules?: FormItemProps['rules']
@@ -378,6 +398,19 @@ const App: FC = () => {
     ...(actions?.items || []).map((item) => item.targetId),
     ...(stateData?.summary?.targetStateTargets || []),
   ])
+  // 直接吃后端 catalog.args，避免上游扩 action 参数时 web 还要手写一份 schema。
+  const actionDescriptors = (actions?.items || []).flatMap<ActionDescriptorView>((item) => {
+    return item.actions.map((action) => ({
+      ...action,
+      targetId: item.targetId,
+      targetType: item.targetType,
+      screen: item.screen,
+    }))
+  })
+  const actionDescriptorByKey = actionDescriptors.reduce<Record<string, ActionDescriptorView>>((result, item) => {
+    result[buildActionKey(item.targetId, item.name)] = item
+    return result
+  }, {})
   const actionsByTargetId = (actions?.items || []).reduce<Record<string, string[]>>((result, item) => {
     result[item.targetId] = item.actions.map((action) => action.name)
     return result
@@ -391,6 +424,10 @@ const App: FC = () => {
   const manualActionOptions = manualActionTargetId
     ? toOptions(actionsByTargetId[manualActionTargetId] || [])
     : actionNameOptions
+  const selectedManualActionDescriptor = manualActionTargetId && manualActionAction
+    ? actionDescriptorByKey[buildActionKey(manualActionTargetId, manualActionAction)]
+    : undefined
+  const manualActionArgNames = (selectedManualActionDescriptor?.args || []).filter((name) => name !== 'text')
   const screenOptions = toOptions([
     help?.screenName,
     snapshot?.screen,
@@ -454,18 +491,59 @@ const App: FC = () => {
       render: (_, item) => (
         <Space size={4} wrap>
           {item.actions.map((action) => (
-            <Button
-              size="small"
-              key={`${item.targetId}-${action.name}`}
-              onClick={() => void runAction(action.example)}
-            >
-              {action.name}
-            </Button>
+            <Space size={4} key={`${item.targetId}-${action.name}`} wrap>
+              <Button
+                size="small"
+                onClick={() => {
+                  if (action.args.length) {
+                    hydrateManualAction(item.targetId, action.name)
+                    message.info(`filled ${item.targetId} ${action.name}`)
+                    return
+                  }
+                  void runAction(action.example)
+                }}
+              >
+                {action.args.length ? `Fill ${action.name}` : action.name}
+              </Button>
+              {action.args.map((argName) => (
+                <Tag key={`${item.targetId}-${action.name}-${argName}`} color={argName === 'text' ? 'gold' : 'default'}>
+                  {argName}
+                </Tag>
+              ))}
+            </Space>
           ))}
         </Space>
       ),
     },
   ]
+
+  function hydrateManualAction(targetId: string, action: string) {
+    const descriptor = actionDescriptorByKey[buildActionKey(targetId, action)]
+    if (!descriptor) {
+      manualActionForm.setFieldsValue({
+        targetId,
+        action,
+      })
+      return
+    }
+
+    const argValues = descriptor.args.reduce<Record<string, string>>((result, argName) => {
+      if (argName === 'text') {
+        return result
+      }
+      result[argName] = descriptor.example.args?.[argName] ?? ''
+      return result
+    }, {})
+
+    manualActionForm.setFieldsValue({
+      targetId,
+      action,
+      text: descriptor.args.includes('text') ? (descriptor.example.text ?? undefined) : undefined,
+      dx: descriptor.example.dx ?? undefined,
+      dy: descriptor.example.dy ?? undefined,
+      argValues,
+    })
+  }
 
   async function loadHelp() {
     const result = await fetchJSON<HelpResponse>('/help')
@@ -538,16 +616,23 @@ const App: FC = () => {
 
   async function runManualAction() {
     try {
-      const values = await manualActionForm.validateFields()
-      const args = values.args ? (JSON.parse(values.args) as Record<string, string>) : {}
+      const values = await manualActionForm.validateFields() as ManualActionFormValues
+      const args = Object.entries(values.argValues || {}).reduce<Record<string, string>>((result, [key, rawValue]) => {
+        const value = rawValue.trim()
+        if (!value) {
+          return result
+        }
+        result[key] = value
+        return result
+      }, {})
       await runAction({
-        action: values.action,
-        targetId: values.targetId,
-        text: values.text || undefined,
+        action: values.action || '',
+        targetId: values.targetId || '',
+        text: values.text?.trim() || undefined,
         dx: values.dx ?? undefined,
         dy: values.dy ?? undefined,
-        source: values.source || undefined,
-        args,
+        source: values.source?.trim() || undefined,
+        args: Object.keys(args).length ? args : undefined,
       })
     } catch (error) {
       message.error(String((error as Error).message || error))
@@ -567,7 +652,7 @@ const App: FC = () => {
 
   useEffect(() => {
     actionQueryForm.setFieldsValue({})
-    manualActionForm.setFieldsValue({ source: 'human', args: '{}' })
+    manualActionForm.setFieldsValue({ source: 'human', argValues: {} })
     logsForm.setFieldsValue({ limit: 20 })
     stateForm.setFieldsValue({})
     snapshotForm.setFieldsValue({ limit: 200, types: [] })
@@ -711,15 +796,35 @@ const App: FC = () => {
                     <Card size="small" title="Manual Action">
                       <Form form={manualActionForm} layout="vertical" size="small">
                         <Flex vertical gap="small">
+                          {selectedManualActionDescriptor ? (
+                            <Space size={4} wrap>
+                              <Text type="secondary">{selectedManualActionDescriptor.summary}</Text>
+                              {selectedManualActionDescriptor.args.length
+                                ? selectedManualActionDescriptor.args.map((argName) => (
+                                  <Tag key={`manual-${argName}`} color={argName === 'text' ? 'gold' : 'default'}>
+                                    {argName}
+                                  </Tag>
+                                ))
+                                : <Tag color="green">no args</Tag>}
+                            </Space>
+                          ) : null}
                           <Flex gap="small" wrap>
-                            <LabeledField name="targetId" label="targetId" className="query-cell" rules={[{ required: true }]}><Select {...commonSelectProps} options={actionTargetIdOptions} /></LabeledField>
-                            <LabeledField name="action" label="action" className="query-cell" rules={[{ required: true }]}><Select {...commonSelectProps} options={manualActionOptions} /></LabeledField>
+                            <LabeledField name="targetId" label="targetId" className="query-cell" rules={[{ required: true }]}><Select {...commonSelectProps} options={actionTargetIdOptions} onChange={(value) => manualActionForm.setFieldsValue({ targetId: value, action: undefined, text: undefined, dx: undefined, dy: undefined, argValues: {} })} /></LabeledField>
+                            <LabeledField name="action" label="action" className="query-cell" rules={[{ required: true }]}><Select {...commonSelectProps} options={manualActionOptions} onChange={(value) => value && manualActionTargetId ? hydrateManualAction(manualActionTargetId, value) : manualActionForm.setFieldValue('action', value)} /></LabeledField>
                             <LabeledField name="source" label="source" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
                             <LabeledField name="text" label="text" className="query-cell"><Input size="small" style={compactInputStyle} /></LabeledField>
                             <LabeledField name="dx" label="dx" className="query-cell query-cell--number"><InputNumber size="small" style={compactNumberStyle} /></LabeledField>
                             <LabeledField name="dy" label="dy" className="query-cell query-cell--number"><InputNumber size="small" style={compactNumberStyle} /></LabeledField>
                           </Flex>
-                          <LabeledField name="args" label="args JSON"><Input.TextArea rows={4} /></LabeledField>
+                          {manualActionArgNames.length ? (
+                            <Flex gap="small" wrap>
+                              {manualActionArgNames.map((argName) => (
+                                <LabeledField key={argName} name={['argValues', argName]} label={argName} className="query-cell">
+                                  <Input size="small" style={compactInputStyle} />
+                                </LabeledField>
+                              ))}
+                            </Flex>
+                          ) : null}
                           <Space size={8}>
                             <Button size="small" type="primary" onClick={() => void runManualAction()}>Send Action</Button>
                           </Space>

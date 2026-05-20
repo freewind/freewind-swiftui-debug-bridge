@@ -56,6 +56,7 @@ public struct DebugServerContext: Sendable {
 }
 
 // 外部动作请求。
+// 这里是 server ↔ web console 的协议面；字段/语义变更时，需同步 DebugConsoleWeb/src/types.ts 与 DebugConsoleWeb/src/App.tsx。
 public struct DebugActionRequest: Codable, Sendable {
     public let action: String
     public let targetId: String
@@ -190,6 +191,7 @@ public struct DebugActionCatalogItem: Codable, Sendable, Identifiable {
 
 public struct DebugActionDescriptor: Codable, Sendable {
     public let name: String
+    // args 直接驱动 web 的动态表单；新增/改名后，web 会尽量自适应，但保留字段语义仍需同步确认。
     public let args: [String]
     public let summary: String
     public let example: DebugActionRequest
