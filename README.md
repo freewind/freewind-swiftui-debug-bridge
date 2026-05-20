@@ -45,12 +45,12 @@ final class DemoShell {
     let debugBridge = DebugBridge(appName: "Demo App")
 
     func start() {
-        debugBridge.registerNodeAction(id: "increment_button", action: "press") { [store] in
+        debugBridge.registerNodeAction(id: "increment_button", action: "press") { [store] _ in
             store.counter += 1
             return .ok("accepted")
         }
 
-        debugBridge.registerIntent(name: "increment_counter") { [store] in
+        debugBridge.registerIntent(name: "increment_counter") { [store] _ in
             store.counter += 1
             return .ok("accepted")
         }
@@ -193,6 +193,22 @@ curl -X POST http://127.0.0.1:7879/action \
   "targetId": "increment_button"
 }
 ```
+
+带参数动作：
+
+```json
+{
+  "action": "press",
+  "targetId": "rename_device_button",
+  "text": "freewind-mac"
+}
+```
+
+说明：
+
+- action handler 统一收 `DebugActionRequest`
+- `text` 适合 text field / rename / send
+- `args` 适合结构化小参数，如 `{"value":"true"}`
 
 调 intent：
 

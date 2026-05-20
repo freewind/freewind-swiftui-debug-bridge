@@ -393,7 +393,14 @@ final class DebugHTTPServer: @unchecked Sendable {
     }
 
     private var webConsoleRootURL: URL {
-        URL(fileURLWithPath: #filePath)
+        #if !SWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE
+        if let bundledURL = Bundle.module.resourceURL?.appendingPathComponent("WebConsoleDist", isDirectory: true) {
+            return bundledURL
+        }
+        #endif
+
+        // path dep / 本地源码运行时，SwiftPM 可能不提供 Bundle.module，退回源码目录。
+        return URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .appendingPathComponent("WebConsoleDist", isDirectory: true)
     }

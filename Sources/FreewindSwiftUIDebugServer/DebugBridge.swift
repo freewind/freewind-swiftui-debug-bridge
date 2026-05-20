@@ -18,12 +18,21 @@ public final class DebugBridge {
         self.host = host
     }
 
-    public func registerIntent(name: String, perform: @escaping @MainActor () -> DebugActionResponse) {
-        registry.registerIntent(name: name, perform: perform)
+    public func registerIntent(
+        name: String,
+        args: [String] = [],
+        perform: @escaping @MainActor (DebugActionRequest) -> DebugActionResponse
+    ) {
+        registry.registerIntent(name: name, args: args, perform: perform)
     }
 
-    public func registerNodeAction(id: String, action: String, perform: @escaping @MainActor () -> DebugActionResponse) {
-        registry.registerNodeAction(id: id, action: action, perform: perform)
+    public func registerNodeAction(
+        id: String,
+        action: String,
+        args: [String] = [],
+        perform: @escaping @MainActor (DebugActionRequest) -> DebugActionResponse
+    ) {
+        registry.registerNodeAction(id: id, action: action, args: args, perform: perform)
     }
 
     public func publishTargetState(id: String, state: [String: String]) {

@@ -5,8 +5,13 @@ import Observation
 @MainActor
 public final class DebugRegistry {
     public private(set) var nodes: [String: DebugNodeSnapshot] = [:]
-    private var intents: [String: @MainActor () -> DebugActionResponse] = [:]
-    private var nodeActions: [String: @MainActor () -> DebugActionResponse] = [:]
+    private struct RegisteredAction {
+        let args: [String]
+        let perform: @MainActor (DebugActionRequest) -> DebugActionResponse
+    }
+
+    private var intents: [String: RegisteredAction] = [:]
+    private var nodeActions: [String: RegisteredAction] = [:]
     private var targetStates: [String: [String: String]] = [:]
     private var logs: [DebugLogEntry] = []
     private var nextLogSequence = 1
@@ -28,12 +33,21 @@ public final class DebugRegistry {
             .forEach { nodeActions.removeValue(forKey: $0) }
     }
 
-    public func registerIntent(name: String, perform: @escaping @MainActor () -> DebugActionResponse) {
-        intents[name] = perform
+    public func registerIntent(
+        name: String,
+        args: [String] = [],
+        perform: @escaping @MainActor (DebugActionRequest) -> DebugActionResponse
+    ) {
+        intents[name] = RegisteredAction(args: args, perform: perform)
     }
 
-    public func registerNodeAction(id: String, action: String, perform: @escaping @MainActor () -> DebugActionResponse) {
-        nodeActions["\(id)::\(action)"] = perform
+    public func registerNodeAction(
+        id: String,
+        action: String,
+        args: [String] = [],
+        perform: @escaping @MainActor (DebugActionRequest) -> DebugActionResponse
+    ) {
+        nodeActions["\(id)::\(action)"] = RegisteredAction(args: args, perform: perform)
     }
 
     public func publishTargetState(id: String, state: [String: String]) {
@@ -127,12 +141,19 @@ public final class DebugRegistry {
                 .compactMap { $0.components(separatedBy: "::").last }
                 .sorted()
 
-            let descriptors = actionNames.map { actionName in
-                DebugActionDescriptor(
-                    name: actionName,
-                    args: [],
-                    summary: "trigger \(targetId) \(actionName)",
-                    example: DebugActionRequest(action: actionName, targetId: targetId)
+            // Swift 6 在这里对 compactMap 推断不稳，显式构造更稳，也更利于后续扩字段。
+            var descriptors: [DebugActionDescriptor] = []
+            for actionName in actionNames {
+                guard let registered = nodeActions["\(targetId)::\(actionName)"] else {
+                    continue
+                }
+                descriptors.append(
+                    DebugActionDescriptor(
+                        name: actionName,
+                        args: registered.args,
+                        summary: "trigger \(targetId) \(actionName)",
+                        example: DebugActionRequest(action: actionName, targetId: targetId)
+                    )
                 )
             }
 
@@ -144,21 +165,29 @@ public final class DebugRegistry {
             )
         }
 
-        items += intents.keys.sorted().map { name in
-            DebugActionCatalogItem(
+        // 这里同样保留显式 append，减少 Swift 版本差异导致的推断问题。
+        var intentItems: [DebugActionCatalogItem] = []
+        for name in intents.keys.sorted() {
+            guard let registered = intents[name] else {
+                continue
+            }
+            intentItems.append(
+                DebugActionCatalogItem(
                 targetId: name,
                 targetType: "Intent",
                 screen: context.screenName,
                 actions: [
                     DebugActionDescriptor(
                         name: "invoke",
-                        args: [],
+                        args: registered.args,
                         summary: "invoke intent \(name)",
                         example: DebugActionRequest(action: "invoke", targetId: name)
                     ),
                 ]
+                )
             )
         }
+        items += intentItems
 
         let filteredItems = items.filter { item in
             matches(query.targetId, value: item.targetId)
@@ -179,9 +208,9 @@ public final class DebugRegistry {
     public func perform(request: DebugActionRequest) -> DebugActionResponse {
         let rawResult: DebugActionResponse
         if let action = nodeActions["\(request.targetId)::\(request.action)"] {
-            rawResult = action()
+            rawResult = action.perform(request)
         } else if request.action == "invoke", let intent = intents[request.targetId] {
-            rawResult = intent()
+            rawResult = intent.perform(request)
         } else {
             rawResult = .fail("unsupported action")
         }

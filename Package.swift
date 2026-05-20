@@ -15,7 +15,10 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "FreewindSwiftUIDebugServer"
+            name: "FreewindSwiftUIDebugServer",
+            resources: [
+                .copy("WebConsoleDist"),
+            ]
         ),
     ]
 )

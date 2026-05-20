@@ -16,7 +16,7 @@ final class DemoAppShell {
         }
         didStart = true
 
-        debugBridge.registerIntent(name: "increment_counter") { [weak self] in
+        debugBridge.registerIntent(name: "increment_counter") { [weak self] _ in
             guard let self else {
                 return .fail("DemoAppShell released")
             }
@@ -24,7 +24,7 @@ final class DemoAppShell {
             return .ok("Counter incremented")
         }
 
-        debugBridge.registerIntent(name: "reset_counter") { [weak self] in
+        debugBridge.registerIntent(name: "reset_counter") { [weak self] _ in
             guard let self else {
                 return .fail("DemoAppShell released")
             }
@@ -32,7 +32,7 @@ final class DemoAppShell {
             return .ok("Counter reset")
         }
 
-        debugBridge.registerNodeAction(id: "increment_button", action: "press") { [weak self] in
+        debugBridge.registerNodeAction(id: "increment_button", action: "press") { [weak self] _ in
             guard let self else {
                 return .fail("DemoAppShell released")
             }
@@ -40,7 +40,7 @@ final class DemoAppShell {
             return .ok("Pressed increment button")
         }
 
-        debugBridge.registerNodeAction(id: "decrement_button", action: "press") { [weak self] in
+        debugBridge.registerNodeAction(id: "decrement_button", action: "press") { [weak self] _ in
             guard let self else {
                 return .fail("DemoAppShell released")
             }
@@ -48,7 +48,7 @@ final class DemoAppShell {
             return .ok("Pressed decrement button")
         }
 
-        debugBridge.registerNodeAction(id: "reset_button", action: "press") { [weak self] in
+        debugBridge.registerNodeAction(id: "reset_button", action: "press") { [weak self] _ in
             guard let self else {
                 return .fail("DemoAppShell released")
             }
@@ -56,17 +56,33 @@ final class DemoAppShell {
             return .ok("Pressed reset button")
         }
 
-        debugBridge.registerNodeAction(id: "fill_name_button", action: "press") { [weak self] in
+        debugBridge.registerNodeAction(id: "fill_name_button", action: "press", args: ["text"]) { [weak self] request in
             guard let self else {
                 return .fail("DemoAppShell released")
+            }
+            if let text = request.text, !text.isEmpty {
+                username = text
+                return .ok("Updated username from request text")
             }
             fillDemoName()
             return .ok("Filled demo name")
         }
 
-        debugBridge.registerNodeAction(id: "enabled_toggle", action: "toggle") { [weak self] in
+        debugBridge.registerNodeAction(id: "enabled_toggle", action: "toggle", args: ["value"]) { [weak self] request in
             guard let self else {
                 return .fail("DemoAppShell released")
+            }
+            if let value = request.args?["value"]?.lowercased() {
+                switch value {
+                case "true":
+                    enabled = true
+                    return .ok("Enabled set true")
+                case "false":
+                    enabled = false
+                    return .ok("Enabled set false")
+                default:
+                    break
+                }
             }
             toggleEnabled()
             return .ok("Toggled enabled")
