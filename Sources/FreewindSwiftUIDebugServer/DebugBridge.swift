@@ -1,6 +1,9 @@
 import Foundation
 import Observation
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 @Observable
 @MainActor
@@ -10,6 +13,9 @@ public final class DebugBridge {
     public let host: String
 
     private var server: DebugHTTPServer?
+    #if canImport(AppKit)
+    private var willTerminateObserver: NSObjectProtocol?
+    #endif
     public private(set) var port: UInt16?
     public private(set) var statusMessage: String = "Not started"
 
@@ -50,6 +56,7 @@ public final class DebugBridge {
     ) {
         stop()
         self.port = port
+        installLifecycleHooks()
 
         server = DebugHTTPServer(
             port: port,
@@ -149,8 +156,35 @@ public final class DebugBridge {
     public func stop() {
         server?.stop()
         server = nil
+        removeLifecycleHooks()
         port = nil
         statusMessage = "Not started"
+    }
+
+    private func installLifecycleHooks() {
+        #if canImport(AppKit)
+        guard willTerminateObserver == nil else {
+            return
+        }
+        willTerminateObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.stop()
+            }
+        }
+        #endif
+    }
+
+    private func removeLifecycleHooks() {
+        #if canImport(AppKit)
+        if let willTerminateObserver {
+            NotificationCenter.default.removeObserver(willTerminateObserver)
+            self.willTerminateObserver = nil
+        }
+        #endif
     }
 
     public func log(
