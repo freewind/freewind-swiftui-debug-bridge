@@ -12,6 +12,11 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: Sources/FreewindSwiftUIDebugServer
+        excludes:
+          - WebConsoleDist
+      - path: Sources/FreewindSwiftUIDebugServer/WebConsoleDist
+        buildPhase: resources
+        type: folder
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: li.freewind.FreewindSwiftUIDebugServer

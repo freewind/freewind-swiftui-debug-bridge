@@ -1,6 +1,8 @@
 import Foundation
 import Network
 
+private final class WebConsoleBundleToken: NSObject {}
+
 private struct HTTPRequest {
     let method: String
     let path: String
@@ -393,13 +395,23 @@ final class DebugHTTPServer: @unchecked Sendable {
     }
 
     private var webConsoleRootURL: URL {
-        #if !SWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE
-        if let bundledURL = Bundle.module.resourceURL?.appendingPathComponent("WebConsoleDist", isDirectory: true) {
+        #if SWIFT_PACKAGE
+        if let bundledURL = Bundle.module.resourceURL?.appendingPathComponent("WebConsoleDist", isDirectory: true),
+            FileManager.default.fileExists(atPath: bundledURL.path)
+        {
             return bundledURL
         }
         #endif
 
-        // path dep / 本地源码运行时，SwiftPM 可能不提供 Bundle.module，退回源码目录。
+        if let bundledURL = Bundle(for: WebConsoleBundleToken.self)
+            .resourceURL?
+            .appendingPathComponent("WebConsoleDist", isDirectory: true),
+            FileManager.default.fileExists(atPath: bundledURL.path)
+        {
+            return bundledURL
+        }
+
+        // path dep / 本地源码运行时，资源未打包则退回源码目录。
         return URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .appendingPathComponent("WebConsoleDist", isDirectory: true)
