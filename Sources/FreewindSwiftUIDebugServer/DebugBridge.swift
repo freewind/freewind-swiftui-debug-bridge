@@ -10,6 +10,7 @@ import AppKit
 public final class DebugBridge {
     public let registry = DebugRegistry()
     public let appName: String
+    public let consoleTitle: String?
     public let host: String
 
     private var server: DebugHTTPServer?
@@ -19,8 +20,13 @@ public final class DebugBridge {
     public private(set) var port: UInt16?
     public private(set) var statusMessage: String = "Not started"
 
-    public init(appName: String = "App", host: String = "127.0.0.1") {
+    public init(
+        appName: String = "App",
+        consoleTitle: String? = nil,
+        host: String = "127.0.0.1"
+    ) {
         self.appName = appName
+        self.consoleTitle = consoleTitle
         self.host = host
     }
 
@@ -65,6 +71,7 @@ public final class DebugBridge {
                     guard let self else {
                         return DebugHelpResponse(
                             appName: "Unknown",
+                            consoleTitle: nil,
                             screenName: "Unknown",
                             serverTime: debugTimestampString(),
                             capabilities: [],
@@ -318,6 +325,7 @@ public final class DebugBridge {
     private func makeContext(screenName: @escaping @MainActor () -> String) -> DebugServerContext {
         DebugServerContext(
             appName: appName,
+            consoleTitle: consoleTitle,
             screenName: screenName()
         )
     }

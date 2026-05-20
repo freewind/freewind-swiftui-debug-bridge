@@ -1,5 +1,6 @@
 export type HelpResponse = {
   appName: string
+  consoleTitle?: string
   screenName: string
   serverTime: string
   capabilities: string[]

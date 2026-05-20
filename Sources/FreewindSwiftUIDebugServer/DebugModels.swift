@@ -41,15 +41,18 @@ public struct DebugNodeSnapshot: Codable, Identifiable, Sendable {
 // server 运行时上下文。
 public struct DebugServerContext: Sendable {
     public let appName: String
+    public let consoleTitle: String?
     public let screenName: String
     public let serverTime: String
 
     public init(
         appName: String,
+        consoleTitle: String? = nil,
         screenName: String,
         serverTime: String = debugTimestampString()
     ) {
         self.appName = appName
+        self.consoleTitle = consoleTitle
         self.screenName = screenName
         self.serverTime = serverTime
     }
@@ -551,6 +554,7 @@ public struct DebugBounds: Codable, Sendable {
 // /help。
 public struct DebugHelpResponse: Codable, Sendable {
     public let appName: String
+    public let consoleTitle: String?
     public let screenName: String
     public let serverTime: String
     public let capabilities: [String]
@@ -560,6 +564,7 @@ public struct DebugHelpResponse: Codable, Sendable {
 
     public init(
         appName: String,
+        consoleTitle: String? = nil,
         screenName: String,
         serverTime: String,
         capabilities: [String],
@@ -568,6 +573,7 @@ public struct DebugHelpResponse: Codable, Sendable {
         examples: [String]
     ) {
         self.appName = appName
+        self.consoleTitle = consoleTitle
         self.screenName = screenName
         self.serverTime = serverTime
         self.capabilities = capabilities

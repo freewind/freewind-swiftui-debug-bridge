@@ -42,7 +42,10 @@ final class DemoStore {
 @MainActor
 final class DemoShell {
     let store = DemoStore()
-    let debugBridge = DebugBridge(appName: "Demo App")
+    let debugBridge = DebugBridge(
+        appName: "Demo App",
+        consoleTitle: "Demo Debug Console"
+    )
 
     func start() {
         debugBridge.registerNodeAction(id: "increment_button", action: "press") { [store] _ in
@@ -115,6 +118,7 @@ curl http://127.0.0.1:7879/help
 ```json
 {
   "appName": "Demo App",
+  "consoleTitle": "Demo Debug Console",
   "screenName": "DemoScreen",
   "serverTime": "20260519-220000",
   "capabilities": ["action", "logs", "state", "snapshot"],

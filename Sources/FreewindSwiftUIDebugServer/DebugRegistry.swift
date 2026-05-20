@@ -62,6 +62,7 @@ public final class DebugRegistry {
         let actionSummary = actionSummaryCounts()
         return DebugHelpResponse(
             appName: context.appName,
+            consoleTitle: context.consoleTitle,
             screenName: context.screenName,
             serverTime: context.serverTime,
             capabilities: ["action", "logs", "state", "snapshot"],

@@ -4,7 +4,10 @@ import Observation
 @Observable
 @MainActor
 final class DemoAppShell {
-    let debugBridge = DebugBridge(appName: "Freewind SwiftUI Debug Server Demo")
+    let debugBridge = DebugBridge(
+        appName: "Freewind SwiftUI Debug Server Demo",
+        consoleTitle: "Freewind SwiftUI Debug Console"
+    )
     var counter = 0
     var username = "freewind"
     var enabled = true

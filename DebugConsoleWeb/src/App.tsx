@@ -352,7 +352,7 @@ const SnapshotTreeView: FC<{ snapshot: SnapshotResponse | null }> = ({ snapshot 
       title: (
         <Space size={4} wrap>
           <Text code>{node.kind}</Text>
-          <Text strong>{node.id}</Text>
+          <Text code>{`id=${node.id}`}</Text>
           {node.label ? <Text type="secondary">{node.label}</Text> : null}
           {node.clickable ? <Tag color="blue">clickable</Tag> : null}
         </Space>
@@ -428,6 +428,7 @@ const App: FC = () => {
     ? actionDescriptorByKey[buildActionKey(manualActionTargetId, manualActionAction)]
     : undefined
   const manualActionArgNames = (selectedManualActionDescriptor?.args || []).filter((name) => name !== 'text')
+  const consoleTitle = help?.consoleTitle || 'Freewind Debug Console'
   const screenOptions = toOptions([
     help?.screenName,
     snapshot?.screen,
@@ -660,6 +661,10 @@ const App: FC = () => {
   }, [])
 
   useEffect(() => {
+    document.title = consoleTitle
+  }, [consoleTitle])
+
+  useEffect(() => {
     if (!actionQueryAction) {
       return
     }
@@ -684,7 +689,7 @@ const App: FC = () => {
       <Header style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', paddingInline: 16, height: 56 }}>
         <Space direction="vertical" size={0}>
           <Title level={4} style={{ margin: 0, lineHeight: '32px', paddingTop: 6 }}>
-            Freewind Debug Console
+            {consoleTitle}
           </Title>
           <Text type="secondary">
             {help ? `${help.appName} / ${help.screenName} / ${help.serverTime}` : 'loading...'}
