@@ -1,6 +1,17 @@
 import AppKit
 import SwiftUI
 
+private struct DebugParentNodeIDKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
+private extension EnvironmentValues {
+    var debugParentNodeID: String? {
+        get { self[DebugParentNodeIDKey.self] }
+        set { self[DebugParentNodeIDKey.self] = newValue }
+    }
+}
+
 // 长按配置。
 public struct DebugLongPressConfig: Sendable {
     public let action: String
@@ -131,6 +142,8 @@ struct DebugFrameReporter: NSViewRepresentable {
     let label: String
     // 动作列表。
     let actions: [String]
+    // 父节点 id。
+    let parentID: String?
     // registry。
     let registry: DebugRegistry
 
@@ -180,7 +193,7 @@ struct DebugFrameReporter: NSViewRepresentable {
         registry.upsert(
             DebugNodeSnapshot(
                 id: id,
-                parentID: parentDebugNodeID(from: view.superview),
+                parentID: parentID,
                 role: role,
                 label: label,
                 x: frame.minX,
@@ -191,18 +204,6 @@ struct DebugFrameReporter: NSViewRepresentable {
                 actions: actions
             )
         )
-    }
-
-    // 沿 superview 找最近的 debug 父节点。
-    private func parentDebugNodeID(from view: NSView?) -> String? {
-        var current = view
-        while let currentView = current {
-            if let trackingView = currentView as? DebugTrackingView, trackingView.debugNodeID != id {
-                return trackingView.debugNodeID
-            }
-            current = currentView.superview
-        }
-        return nil
     }
 }
 
@@ -218,18 +219,23 @@ public struct DebugNodeModifier: ViewModifier {
     let actions: [String]
     // 从环境拿 registry。
     @Environment(DebugRegistry.self) private var registry
+    // 从环境拿显式父节点。
+    @Environment(\.debugParentNodeID) private var parentDebugNodeID
 
     // 在目标 view 后挂透明采集层。
     public func body(content: Content) -> some View {
-        content.background(
-            DebugFrameReporter(
-                id: id,
-                role: role,
-                label: label,
-                actions: actions,
-                registry: registry
+        content
+            .environment(\.debugParentNodeID, id)
+            .background(
+                DebugFrameReporter(
+                    id: id,
+                    role: role,
+                    label: label,
+                    actions: actions,
+                    parentID: parentDebugNodeID,
+                    registry: registry
+                )
             )
-        )
     }
 
     // 对外构造。

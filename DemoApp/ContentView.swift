@@ -42,6 +42,11 @@ struct ContentView: View {
                             label: "Enabled value"
                         )
                 }
+                .debugNodeStatic(
+                    id: "status_section",
+                    role: "container",
+                    label: "Status section"
+                )
 
                 HStack(spacing: 12) {
                     Button(
@@ -95,6 +100,11 @@ struct ContentView: View {
                         actions: ["press"]
                     )
                 }
+                .debugNodeStatic(
+                    id: "counter_actions_row",
+                    role: "container",
+                    label: "Counter actions row"
+                )
 
                 VStack(alignment: .leading, spacing: 10) {
                     TextField(
@@ -130,6 +140,11 @@ struct ContentView: View {
                         actions: ["toggle"]
                     )
                 }
+                .debugNodeStatic(
+                    id: "form_section",
+                    role: "container",
+                    label: "Form section"
+                )
 
                 Button(
                     "Fill Demo Name",
@@ -172,9 +187,19 @@ struct ContentView: View {
                             label: "Debug bridge status"
                         )
                 }
+                .debugNodeStatic(
+                    id: "http_section",
+                    role: "container",
+                    label: "HTTP section"
+                )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)
+            .debugNodeStatic(
+                id: "content_stack",
+                role: "container",
+                label: "Content stack"
+            )
         }
         .frame(minWidth: 760, minHeight: 420)
         .debugNodeStatic(
