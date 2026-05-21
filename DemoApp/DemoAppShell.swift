@@ -1,11 +1,11 @@
-import FreewindSwiftUIDebugServer
+import FreewindSwiftUIDebugBridge
 import Observation
 
 @Observable
 @MainActor
 final class DemoAppShell {
     let debugBridge = DebugBridge(
-        appName: "Freewind SwiftUI Debug Server Demo",
+        appName: "Freewind SwiftUI Debug Bridge Demo",
         consoleTitle: "Freewind SwiftUI Debug Console"
     )
     var counter = 0

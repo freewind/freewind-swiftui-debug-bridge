@@ -3,22 +3,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "FreewindSwiftUIDebugServer",
+    name: "FreewindSwiftUIDebugBridge",
     platforms: [
         .macOS(.v14),
     ],
     products: [
         .library(
-            name: "FreewindSwiftUIDebugServer",
-            targets: ["FreewindSwiftUIDebugServer"]
+            name: "FreewindSwiftUIDebugBridge",
+            targets: ["FreewindSwiftUIDebugBridge"]
         ),
     ],
     targets: [
         .target(
-            name: "FreewindSwiftUIDebugServer",
-            resources: [
-                .copy("WebConsoleDist"),
-            ]
+            name: "FreewindSwiftUIDebugBridge"
         ),
     ]
 )

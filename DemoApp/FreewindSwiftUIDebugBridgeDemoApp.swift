@@ -8,7 +8,7 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-struct FreewindSwiftUIDebugServerDemoApp: App {
+struct FreewindSwiftUIDebugBridgeDemoApp: App {
     @NSApplicationDelegateAdaptor(DemoAppDelegate.self) private var appDelegate
     @State private var shell = DemoAppShell()
 

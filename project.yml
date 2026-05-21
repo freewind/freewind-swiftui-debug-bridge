@@ -1,4 +1,4 @@
-name: FreewindSwiftUIDebugServer
+name: FreewindSwiftUIDebugBridge
 options:
   createIntermediateGroups: true
 settings:
@@ -8,39 +8,39 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     MARKETING_VERSION: "1.0"
 targets:
-  FreewindSwiftUIDebugServer:
+  FreewindSwiftUIDebugBridge:
     type: framework
     platform: macOS
     deploymentTarget: "14.0"
     sources:
-      - path: Sources/FreewindSwiftUIDebugServer
+      - path: Sources/FreewindSwiftUIDebugBridge
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: li.freewind.FreewindSwiftUIDebugServer
+        PRODUCT_BUNDLE_IDENTIFIER: li.freewind.FreewindSwiftUIDebugBridge
         GENERATE_INFOPLIST_FILE: YES
         DEFINES_MODULE: YES
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
-  FreewindSwiftUIDebugServerDemoApp:
+  FreewindSwiftUIDebugBridgeDemoApp:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
-    productName: FreewindSwiftUIDebugServerDemoApp
+    productName: FreewindSwiftUIDebugBridgeDemoApp
     sources:
       - path: DemoApp
     dependencies:
-      - target: FreewindSwiftUIDebugServer
+      - target: FreewindSwiftUIDebugBridge
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: li.freewind.FreewindSwiftUIDebugServerDemoApp
+        PRODUCT_BUNDLE_IDENTIFIER: li.freewind.FreewindSwiftUIDebugBridgeDemoApp
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
 schemes:
-  FreewindSwiftUIDebugServerDemoApp:
+  FreewindSwiftUIDebugBridgeDemoApp:
     build:
       targets:
-        FreewindSwiftUIDebugServerDemoApp: all
+        FreewindSwiftUIDebugBridgeDemoApp: all
     run:
       config: Debug
     archive:

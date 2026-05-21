@@ -1,4 +1,4 @@
-import FreewindSwiftUIDebugServer
+import FreewindSwiftUIDebugBridge
 import SwiftUI
 
 struct ContentView: View {
@@ -9,7 +9,7 @@ struct ContentView: View {
 
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Freewind SwiftUI Debug Server")
+                Text("Freewind SwiftUI Debug Bridge")
                     .font(.title2)
                     .debugNodeStatic(
                         id: "title_text",

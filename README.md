@@ -1,6 +1,6 @@
-# FreewindSwiftUIDebugServer
+# FreewindSwiftUIDebugBridge
 
-给 `SwiftUI macOS` app 提供一套给 AI 用的本地 debug server。
+给 `SwiftUI macOS` app 提供一套给 AI 用的本地 debug bridge。
 
 目标：
 
@@ -32,7 +32,7 @@
 
 ```swift
 import SwiftUI
-import FreewindSwiftUIDebugServer
+import FreewindSwiftUIDebugBridge
 
 @Observable
 @MainActor
