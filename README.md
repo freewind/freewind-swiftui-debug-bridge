@@ -23,8 +23,9 @@
 
 说明：
 
-- 协议 source of truth 在 `/Users/peng.li/workspace/freewind-debug-bridge-web/src/api-spec.ts`
-- 独立调试台实现在 `/Users/peng.li/workspace/freewind-debug-bridge-web`
+- 协议 SSOT：`/Users/peng.li/workspace/freewind-debug-bridge-web/typespec/main.tsp`
+- 机器可读契约：`/Users/peng.li/workspace/freewind-debug-bridge-web/typespec/generated/openapi.yaml`
+- 独立调试台：`/Users/peng.li/workspace/freewind-debug-bridge-web`
 - 这是“已注册关键节点”模型，不是自动穷举 SwiftUI 私有 view tree
 - 推荐只在 `DEBUG` / 本机开发启用
 
@@ -101,7 +102,7 @@ struct ContentView: View {
 
 ## endpoint 示例
 
-字段名、query、返回 shape 以 `/Users/peng.li/workspace/freewind-debug-bridge-web/src/api-spec.ts` 为准。
+字段名、query、返回 shape 以 `freewind-debug-bridge-web/typespec/generated/openapi.yaml` 为准（源文件 `typespec/main.tsp`）。
 
 基址：
 
@@ -378,3 +379,32 @@ curl "http://127.0.0.1:7879/snapshot?types=Button&clickable=true&limit=20"
 - `clickable`
 - `fields`
 - `limit`
+
+## 协议来源与类型生成
+
+本仓不再维护独立 API 文档。唯一准绳在 sibling 仓 `freewind-debug-bridge-web`：
+
+| 文件 | 用途 |
+|------|------|
+| `typespec/main.tsp` | 契约 SSOT（改协议先改这里） |
+| `typespec/generated/openapi.yaml` | 给其他语言/工具消费 |
+
+协议变更流程：
+
+1. 改 `freewind-debug-bridge-web/typespec/main.tsp`
+2. 那边执行 `pnpm generate`（产出 OpenAPI + web TS 类型）
+3. 本仓对齐 `DebugModels.swift` 等实现
+4. 跑测试 / 用独立调试台联调
+
+### 从 OpenAPI 生成 Swift 类型（对照用）
+
+需要 Java 8+，安装 [OpenAPI Generator](https://openapi-generator.tech/) 后：
+
+```bash
+OPENAPI=/Users/peng.li/workspace/freewind-debug-bridge-web/typespec/generated/openapi.yaml
+
+openapi-generator generate -i "$OPENAPI" -g swift5 -o /tmp/debug-bridge-swift \
+  --global-property models,supportingFiles
+```
+
+只生成 model，不生成 HTTP client（本库自带 server）。生成物用于对照字段，禁止手改后当 SSOT。

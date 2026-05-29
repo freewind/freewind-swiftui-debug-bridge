@@ -272,9 +272,9 @@ public final class DebugRegistry {
             message: rawResult.message,
             action: rawResult.action ?? request.action,
             targetId: rawResult.targetId ?? request.targetId,
+            durationMs: rawResult.durationMs ?? durationMs,
             errorType: rawResult.errorType,
-            timedOut: rawResult.timedOut,
-            durationMs: rawResult.durationMs ?? durationMs
+            timedOut: rawResult.timedOut
         )
 
         var data = request.args ?? [:]
@@ -583,9 +583,9 @@ public final class DebugRegistry {
         return DebugLogsSummary(
             total: logs.count,
             timeRange: timeRange,
-            levelCounts: levelCounts,
-            sourceCounts: sourceCounts,
-            eventCountsTop: Dictionary(topEvents.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+            levelCounts: levelCounts.mapValues(String.init),
+            sourceCounts: sourceCounts.mapValues(String.init),
+            eventCountsTop: Dictionary(topEvents.map { ($0.key, String($0.value)) }, uniquingKeysWith: { first, _ in first })
         )
     }
 
@@ -598,7 +598,7 @@ public final class DebugRegistry {
             screen: screenName,
             nodeCount: sortedNodes.count,
             rootIds: rootIds,
-            typeCounts: typeCounts,
+            typeCounts: typeCounts.mapValues(String.init),
             clickableCount: clickableCount
         )
     }
